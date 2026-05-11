@@ -1,0 +1,180 @@
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_dia2']) || $_GET['_run_dia2'] !== '1') return;
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $log = [];
+    $home_id = 186;
+
+    // 1) Sideload hero photo
+    $hero_remote = 'https://raw.githubusercontent.com/ajvilatela/instagram-assets/main/seo/home/hero-quirofano-equipo-microscopio.jpg';
+    $hero_new_url = null; $hero_new_id = null;
+    $tmp = download_url($hero_remote, 60);
+    if (is_wp_error($tmp)) {
+        $log[] = 'ERR hero download: ' . $tmp->get_error_message();
+    } else {
+        $fa = ['name' => 'hero-quirofano-equipo-microscopio.jpg', 'tmp_name' => $tmp];
+        $aid = media_handle_sideload($fa, 0, 'Quirofano de columna Dr Vilatela Valencia');
+        if (is_wp_error($aid)) {
+            @unlink($tmp);
+            $log[] = 'ERR hero sideload: ' . $aid->get_error_message();
+        } else {
+            update_post_meta($aid, '_wp_attachment_image_alt', 'Dr Vilatela y equipo operando con microscopio en quirofano Valencia');
+            $hero_new_id = (int)$aid;
+            $hero_new_url = wp_get_attachment_url($aid);
+            $log[] = "OK hero id=$aid";
+        }
+    }
+
+    // 2) Walk home _elementor_data
+    $raw = get_post_meta($home_id, '_elementor_data', true);
+    if (empty($raw)) { echo 'No _elementor_data home'; exit; }
+    $data = json_decode($raw, true);
+    if (!is_array($data)) { echo 'JSON home invalido'; exit; }
+
+    $cta_map = [
+        '1tiweyg3' => 'https://drvilatela.es/cirujano-endoscopia-columna-valencia/',
+        'fcurt6y2' => 'https://drvilatela.es/medicina-regenerativa/',
+        'hu17rt4b' => 'https://drvilatela.es/atencion-al-paciente/',
+    ];
+    $cta_replaced = 0; $hero_replaced = 0;
+
+    $walker = function (&$node) use (&$walker, $cta_map, $hero_new_url, $hero_new_id, &$cta_replaced, &$hero_replaced) {
+        if (!is_array($node)) return;
+        $wid = $node['id'] ?? null;
+        if ($wid && isset($cta_map[$wid]) && isset($node['settings']) && is_array($node['settings'])) {
+            $new_url = $cta_map[$wid];
+            foreach ($node['settings'] as $sk => &$sv) {
+                if (is_array($sv) && isset($sv['url']) && is_string($sv['url']) &&
+                    (strpos($sv['url'], '/spinal-surgery//') !== false || strpos($sv['url'], '/services//') !== false)) {
+                    $sv['url'] = $new_url; $cta_replaced++;
+                }
+                if (is_string($sv) && (strpos($sv, '/spinal-surgery//') !== false || strpos($sv, '/services//') !== false)) {
+                    $sv = $new_url; $cta_replaced++;
+                }
+            }
+            unset($sv);
+        }
+        if ($hero_new_url && isset($node['settings']) && is_array($node['settings'])) {
+            foreach ($node['settings'] as $sk => &$sv) {
+                if (is_array($sv) && isset($sv['url']) && is_string($sv['url']) &&
+                    strpos($sv['url'], 'tenweb_media_YCNLvGOj') !== false) {
+                    $sv['url'] = $hero_new_url;
+                    if (isset($sv['id'])) $sv['id'] = $hero_new_id;
+                    if (isset($sv['size'])) $sv['size'] = '';
+                    $hero_replaced++;
+                }
+            }
+            unset($sv);
+        }
+        if (!empty($node['elements']) && is_array($node['elements'])) {
+            foreach ($node['elements'] as &$child) { $walker($child); }
+            unset($child);
+        }
+    };
+    foreach ($data as &$top) { $walker($top); }
+    unset($top);
+
+    $log[] = "home: CTA URLs=$cta_replaced, hero bg=$hero_replaced";
+    $new_raw = wp_json_encode($data);
+    if ($new_raw === false) { echo 'json_encode home fallo'; exit; }
+    update_post_meta($home_id, '_elementor_data', wp_slash($new_raw));
+    $log[] = 'home guardado';
+
+    // Helper: fetch HTML content from GitHub raw
+    $fetch_html = function($url) {
+        $r = wp_remote_get($url, ['timeout' => 30]);
+        if (is_wp_error($r)) return null;
+        if (wp_remote_retrieve_response_code($r) !== 200) return null;
+        return wp_remote_retrieve_body($r);
+    };
+
+    // 3) Create UBE landing
+    $ube_slug = 'cirugia-endoscopica-ube-valencia';
+    $existing = get_page_by_path($ube_slug, OBJECT, 'page');
+    if ($existing) {
+        $log[] = "UBE ya existe id=" . $existing->ID;
+        $ube_post_id = $existing->ID;
+    } else {
+        $ube_content = $fetch_html('https://raw.githubusercontent.com/ajvilatela/instagram-assets/main/seo/landings/ube-valencia.html');
+        if (!$ube_content) {
+            $log[] = 'ERR UBE fetch HTML';
+            $ube_post_id = 0;
+        } else {
+            $ube_post_id = wp_insert_post([
+                'post_title'    => 'Cirugia Endoscopica Biportal (UBE/ESUBE) en Valencia | Dr. Vilatela',
+                'post_name'     => $ube_slug,
+                'post_status'   => 'publish',
+                'post_type'     => 'page',
+                'post_content'  => $ube_content,
+                'post_author'   => 1,
+                'comment_status'=> 'closed',
+                'meta_input'    => [
+                    'rank_math_title'         => 'Cirugia Endoscopica UBE/ESUBE Valencia | Dr. Vilatela',
+                    'rank_math_description'   => 'Cirugia endoscopica biportal (UBE/ESUBE) en Valencia. Tecnica minimamente invasiva para hernia discal y estenosis. 95 por ciento mejora del dolor a 3 meses.',
+                    'rank_math_focus_keyword' => 'cirugia endoscopica UBE Valencia',
+                ],
+            ]);
+            if (is_wp_error($ube_post_id)) {
+                $log[] = 'ERR UBE create: ' . $ube_post_id->get_error_message();
+                $ube_post_id = 0;
+            } else {
+                $log[] = "OK UBE creada id=$ube_post_id";
+            }
+        }
+    }
+
+    // 4) Create Segunda Opinion landing
+    $so_slug = 'segunda-opinion-columna-valencia';
+    $existing2 = get_page_by_path($so_slug, OBJECT, 'page');
+    if ($existing2) {
+        $log[] = "SO ya existe id=" . $existing2->ID;
+        $so_post_id = $existing2->ID;
+    } else {
+        $so_content = $fetch_html('https://raw.githubusercontent.com/ajvilatela/instagram-assets/main/seo/landings/segunda-opinion-valencia.html');
+        if (!$so_content) {
+            $log[] = 'ERR SO fetch HTML';
+            $so_post_id = 0;
+        } else {
+            $so_post_id = wp_insert_post([
+                'post_title'    => 'Segunda Opinion sobre Cirugia de Columna Valencia | Dr. Vilatela',
+                'post_name'     => $so_slug,
+                'post_status'   => 'publish',
+                'post_type'     => 'page',
+                'post_content'  => $so_content,
+                'post_author'   => 1,
+                'comment_status'=> 'closed',
+                'meta_input'    => [
+                    'rank_math_title'         => 'Segunda Opinion Cirugia Columna Valencia | Dr. Vilatela',
+                    'rank_math_description'   => 'Segunda opinion profesional sobre cirugia de columna en Valencia. Evaluacion objetiva, presencial o online. Consulta privada.',
+                    'rank_math_focus_keyword' => 'segunda opinion columna Valencia',
+                ],
+            ]);
+            if (is_wp_error($so_post_id)) {
+                $log[] = 'ERR SO create: ' . $so_post_id->get_error_message();
+                $so_post_id = 0;
+            } else {
+                $log[] = "OK SO creada id=$so_post_id";
+            }
+        }
+    }
+
+    // 5) Purge caches
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log[] = 'Elementor cache purgada';
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+        $log[] = 'LiteSpeed purga disparada';
+    }
+    clean_post_cache($home_id);
+    if (!empty($ube_post_id)) clean_post_cache($ube_post_id);
+    if (!empty($so_post_id))  clean_post_cache($so_post_id);
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
