@@ -1,0 +1,91 @@
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_orphans']) || $_GET['_run_orphans'] !== '1') return;
+
+    global $wpdb;
+
+    // 1) Slugs/URLs que están en CUALQUIER menú
+    $menu_urls = [];
+    foreach (wp_get_nav_menus() as $menu) {
+        foreach ((array) wp_get_nav_menu_items($menu->term_id) as $it) {
+            if (!$it) continue;
+            if ($it->object === 'page' && !empty($it->object_id)) {
+                $menu_urls[] = (int) $it->object_id;
+            } elseif (!empty($it->url)) {
+                $path = parse_url($it->url, PHP_URL_PATH);
+                if ($path) $menu_urls[] = trim($path, '/');
+            }
+        }
+    }
+    $menu_urls = array_unique($menu_urls);
+
+    // 2) Listar todas las pages publicadas
+    $pages = $wpdb->get_results(
+        "SELECT ID, post_title, post_name, post_status FROM {$wpdb->posts}
+         WHERE post_type = 'page' AND post_status = 'publish'
+         ORDER BY ID ASC"
+    );
+
+    $log = [];
+    $log[] = "=== Páginas publicadas: " . count($pages) . " ===";
+    $log[] = "";
+
+    $internal_orphans_with_links = [];
+
+    foreach ($pages as $p) {
+        $in_menu_by_id   = in_array((int)$p->ID, $menu_urls, true);
+        $in_menu_by_slug = in_array($p->post_name, $menu_urls, true);
+        $in_menu = $in_menu_by_id || $in_menu_by_slug;
+
+        // Contar internal links entrantes (busca slug en post_content + _elementor_data)
+        $slug_needle = '/' . $p->post_name;
+
+        $hits_content = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_status = 'publish'
+               AND post_type IN ('page','post')
+               AND ID != %d
+               AND post_content LIKE %s",
+            $p->ID, '%' . $wpdb->esc_like($slug_needle) . '%'
+        ));
+
+        $hits_elementor = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+             JOIN {$wpdb->posts} po ON po.ID = pm.post_id
+             WHERE pm.meta_key = '_elementor_data'
+               AND po.post_status = 'publish'
+               AND po.ID != %d
+               AND pm.meta_value LIKE %s",
+            $p->ID, '%' . $wpdb->esc_like($slug_needle) . '%'
+        ));
+
+        $total_in = $hits_content + $hits_elementor;
+        $url_path = '/' . $p->post_name . '/';
+        $status = $in_menu ? '[HEADER]' : ($total_in > 0 ? '[INDEXAR_GSC]' : '[HUERFANA]');
+
+        $log[] = sprintf("%-16s ID=%-4d in=%-2d  %s  (%s)", $status, $p->ID, $total_in, $url_path, mb_substr($p->post_title, 0, 50));
+
+        if (!$in_menu && $total_in > 0) {
+            $internal_orphans_with_links[] = [
+                'id'      => (int)$p->ID,
+                'slug'    => $p->post_name,
+                'path'    => $url_path,
+                'links_in'=> $total_in,
+                'title'   => mb_substr($p->post_title, 0, 60),
+            ];
+        }
+    }
+
+    $log[] = "";
+    $log[] = "=== A ENVIAR A GSC (con links internos, sin estar en header) ===";
+    if (!$internal_orphans_with_links) {
+        $log[] = "(ninguna)";
+    } else {
+        foreach ($internal_orphans_with_links as $r) {
+            $log[] = "  - https://drvilatela.es" . $r['path'] . "   (" . $r['links_in'] . " links entrantes)";
+        }
+    }
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
