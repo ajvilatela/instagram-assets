@@ -1,0 +1,115 @@
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_intlinks']) || $_GET['_run_intlinks'] !== '1') return;
+
+    $log = [];
+
+    // CSS común (inline en cada HTML)
+    $css_ube = "<style>.vlxl-ube{background:linear-gradient(135deg,#25D366 0%,#1FAE54 100%);color:#fff;border-radius:14px;padding:42px 32px;text-align:center;margin:24px 0;box-shadow:0 6px 24px rgba(37,211,102,0.25)}.vlxl-ube h2{color:#fff;font-size:1.8em;margin:0 0 12px}.vlxl-ube p{font-size:1.1em;max-width:720px;margin:0 auto 22px;opacity:0.97}.vlxl-ube a.btn{display:inline-block;background:#fff;color:#1B2A4A;padding:14px 34px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1.05em;transition:transform 0.2s}.vlxl-ube a.btn:hover{transform:translateY(-2px)}</style>";
+    $css_so  = "<style>.vlxl-so{background:linear-gradient(135deg,#1B2A4A 0%,#2A3F6B 100%);color:#FFF8E7;border-radius:14px;padding:42px 32px;text-align:center;margin:24px 0;box-shadow:0 6px 24px rgba(27,42,74,0.30)}.vlxl-so h2{color:#FFF8E7;font-size:1.8em;margin:0 0 12px}.vlxl-so .lead{color:#25D366;font-weight:600;font-size:1.15em;margin-bottom:14px}.vlxl-so p{font-size:1.05em;max-width:720px;margin:0 auto 22px;opacity:0.95}.vlxl-so a.btn{display:inline-block;background:#25D366;color:#fff;padding:14px 34px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1.05em;transition:transform 0.2s}.vlxl-so a.btn:hover{transform:translateY(-2px);background:#1FAE54}</style>";
+    $css_dual = "<style>.vlxl-dual{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;margin:30px 0}.vlxl-dual-card{padding:32px 26px;border-radius:14px;text-align:center;color:#fff}.vlxl-dual-card.green{background:linear-gradient(135deg,#25D366 0%,#1FAE54 100%);box-shadow:0 6px 20px rgba(37,211,102,0.22)}.vlxl-dual-card.navy{background:linear-gradient(135deg,#1B2A4A 0%,#2A3F6B 100%);box-shadow:0 6px 20px rgba(27,42,74,0.28);color:#FFF8E7}.vlxl-dual-card h3{margin:0 0 10px;font-size:1.3em;color:inherit}.vlxl-dual-card p{font-size:1em;margin:0 0 18px;opacity:0.95}.vlxl-dual-card a{display:inline-block;background:#fff;color:#1B2A4A;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700}.vlxl-dual-card.navy a{background:#25D366;color:#fff}</style>";
+
+    // === Contenido HTML por sección ===
+    $sections = [
+        // home → UBE
+        'vlxlh1ube' => [
+            'page_id' => 186,
+            'html' => $css_ube . '<div class="vlxl-ube"><h2>¿Eres candidato a cirugía endoscópica UBE?</h2><p>La técnica más avanzada para hernia discal y estenosis lumbar. Dos incisiones de 7&nbsp;mm. Recuperación en días, no en meses.</p><a class="btn" href="/cirugia-endoscopica-ube-valencia/">Conocer la técnica UBE →</a></div>',
+        ],
+        // home → Segunda Opinión
+        'vlxlh2so' => [
+            'page_id' => 186,
+            'html' => $css_so . '<div class="vlxl-so"><div class="lead">Antes de operarte, infórmate.</div><h2>¿Te han propuesto cirugía de columna?</h2><p>Una segunda opinión profesional puede ahorrarte una operación innecesaria, ayudarte a elegir la técnica más adecuada o confirmar que la indicación es correcta. Evaluación objetiva, sin presión comercial.</p><a class="btn" href="/segunda-opinion-columna-valencia/">Solicitar segunda opinión →</a></div>',
+        ],
+        // pillar 739 → UBE deep dive
+        'vlxlp739ube' => [
+            'page_id' => 739,
+            'html' => $css_ube . '<div class="vlxl-ube"><h2>Profundiza en la técnica UBE/ESUBE</h2><p>Si quieres entender en detalle cómo funciona la endoscopia biportal (UBE/ESUBE) — patologías tratables, comparativa frente a cirugía abierta y microcirugía, FAQ y candidatos típicos —, te lo explico en una página dedicada a esta técnica.</p><a class="btn" href="/cirugia-endoscopica-ube-valencia/">Ver técnica UBE en detalle →</a></div>',
+        ],
+        // pillar 739 → SO al final
+        'vlxlp739so' => [
+            'page_id' => 739,
+            'html' => $css_so . '<div class="vlxl-so"><div class="lead">¿Aún tienes dudas?</div><h2>Pide una segunda opinión</h2><p>Si te han propuesto cirugía de columna en otro centro y tienes dudas, te ofrezco una evaluación objetiva de tu caso. Mi conclusión puede ser "no opere" con la misma frecuencia que "sí opere".</p><a class="btn" href="/segunda-opinion-columna-valencia/">Solicitar segunda opinión →</a></div>',
+        ],
+        // pillar 735 → DUAL (UBE + SO)
+        'vlxlp735dual' => [
+            'page_id' => 735,
+            'html' => $css_dual . '<div class="vlxl-dual"><div class="vlxl-dual-card green"><h3>Cirugía endoscópica UBE/ESUBE</h3><p>La técnica más avanzada de cirugía mínimamente invasiva de columna. 2 incisiones de 7&nbsp;mm, sin fusión vertebral en la mayoría de casos.</p><a href="/cirugia-endoscopica-ube-valencia/">Conocer la técnica →</a></div><div class="vlxl-dual-card navy"><h3>Segunda opinión sobre cirugía de columna</h3><p>Antes de operarte, infórmate. Evaluación objetiva, presencial u online. Mi conclusión puede ser "no opere".</p><a href="/segunda-opinion-columna-valencia/">Pedir segunda opinión →</a></div></div>',
+        ],
+        // atencion al paciente → SO
+        'vlxlapso' => [
+            'page_id' => 189,
+            'html' => $css_so . '<div class="vlxl-so"><div class="lead">¿No estás seguro sobre operarte?</div><h2>Pide una segunda opinión profesional</h2><p>Forma parte de cuidar al paciente: ayudarte a decidir con toda la información sobre la mesa. Revisamos juntos tu RM/TAC, valoramos alternativas y te entregamos un informe escrito si lo necesitas.</p><a class="btn" href="/segunda-opinion-columna-valencia/">Conocer el servicio →</a></div>',
+        ],
+    ];
+
+    // Helper para crear container Elementor con widget HTML
+    $build_container = function($marker_id, $html) {
+        return [
+            'id'        => $marker_id,
+            'elType'    => 'container',
+            'settings'  => [
+                'content_width' => 'boxed',
+                'padding'       => ['top'=>'20','right'=>'20','bottom'=>'20','left'=>'20','unit'=>'px','isLinked'=>true],
+            ],
+            'elements'  => [[
+                'id'         => substr($marker_id, 0, 6) . 'w',
+                'elType'     => 'widget',
+                'widgetType' => 'html',
+                'settings'   => ['html' => $html],
+            ]],
+            'isInner'   => false,
+        ];
+    };
+
+    // Función para insertar container al final del _elementor_data si no existe ya
+    $insert_if_missing = function($page_id, $marker_id, $container_data) use (&$log) {
+        $raw = get_post_meta($page_id, '_elementor_data', true);
+        if (empty($raw)) { $log[] = "page $page_id: no _elementor_data"; return false; }
+        $data = json_decode($raw, true);
+        if (!is_array($data)) { $log[] = "page $page_id: JSON invalido"; return false; }
+
+        // Verificar idempotencia: buscar marker_id recursivamente
+        $found = false;
+        $check = function($node) use (&$check, $marker_id, &$found) {
+            if (!is_array($node)) return;
+            if (isset($node['id']) && $node['id'] === $marker_id) { $found = true; return; }
+            if (!empty($node['elements'])) {
+                foreach ($node['elements'] as $c) $check($c);
+            }
+        };
+        foreach ($data as $top) { $check($top); if ($found) break; }
+
+        if ($found) {
+            $log[] = "page $page_id: marker '$marker_id' ya existe (skip)";
+            return false;
+        }
+
+        // Insertar al final
+        $data[] = $container_data;
+        $new_raw = wp_json_encode($data);
+        if ($new_raw === false) { $log[] = "page $page_id: json_encode fallo"; return false; }
+        update_post_meta($page_id, '_elementor_data', wp_slash($new_raw));
+        clean_post_cache($page_id);
+        $log[] = "page $page_id: container '$marker_id' añadido al final";
+        return true;
+    };
+
+    // Ejecutar inserciones
+    foreach ($sections as $marker => $info) {
+        $insert_if_missing($info['page_id'], $marker, $build_container($marker, $info['html']));
+    }
+
+    // Purgar cachés
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log[] = 'Elementor cache purgada';
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+        $log[] = 'LiteSpeed purga disparada';
+    }
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
