@@ -1,0 +1,181 @@
+<?php
+/**
+ * drvilatela.es — Schema Markup Robusto (v2 con FAQs aprobadas por Dr.)
+ * Permanent: inyecta JSON-LD en wp_head (Organization + Physician + MedicalClinic + FAQ)
+ * One-shot: ?_run_schema_setup=1 (admin) sideload logo y guarda URL en wp_options
+ */
+
+// ============ ONE-SHOT SETUP (sideload logo) ============
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_schema_setup']) || $_GET['_run_schema_setup'] !== '1') return;
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $log = [];
+    $remote = 'https://raw.githubusercontent.com/ajvilatela/instagram-assets/main/seo/brand/logo-drav-1024.png';
+    $tmp = download_url($remote, 60);
+    if (is_wp_error($tmp)) { echo 'ERR download: ' . $tmp->get_error_message(); exit; }
+    $fa = ['name' => 'logo-drav-1024.png', 'tmp_name' => $tmp];
+    $aid = media_handle_sideload($fa, 0, 'Logo oficial Dr. Antonio Vilatela');
+    if (is_wp_error($aid)) { @unlink($tmp); echo 'ERR sideload: ' . $aid->get_error_message(); exit; }
+    update_post_meta($aid, '_wp_attachment_image_alt', 'Logo Dr. Antonio Vilatela - Cirujano de columna Valencia');
+    $logo_url = wp_get_attachment_url($aid);
+    update_option('drvilatela_schema_logo_url', $logo_url);
+    update_option('drvilatela_schema_logo_id', (int)$aid);
+    $log[] = "OK logo id=$aid url=$logo_url";
+
+    if (class_exists('\\Elementor\\Plugin')) \Elementor\Plugin::$instance->files_manager->clear_cache();
+    if (has_action('litespeed_purge_all')) do_action('litespeed_purge_all');
+    $log[] = 'caches purgadas';
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
+
+// ============ PERMANENT: inject JSON-LD on every front-end page ============
+add_action('wp_head', function () {
+    if (is_admin()) return;
+
+    $site_url = 'https://drvilatela.es';
+    $logo_url = get_option('drvilatela_schema_logo_url', $site_url . '/wp-content/uploads/2026/05/logo-drav-1024.png');
+
+    $sameAs = [
+        'https://www.linkedin.com/in/dr-antonio-vilatela-m-d-93269393/',
+        'https://www.instagram.com/drvilatela/',
+        'https://lasaludhospital.es/dr-vilatela-antonio',
+        'https://regeneratclinica.com/doctor-antonio-vitaleta/',
+        'https://clinicasospedra.com/trainer/antonio-vilatela-gomez/',
+        'https://masquemedicos.com/traumatologo_burjassot/antonio-vilatela-gomez/',
+    ];
+
+    $organization = [
+        '@type' => 'Organization',
+        '@id'   => $site_url . '/#organization',
+        'name'  => 'Dr. Antonio Vilatela - ICEM Valencia',
+        'url'   => $site_url . '/',
+        'logo'  => [
+            '@type'  => 'ImageObject',
+            'url'    => $logo_url,
+            'width'  => 1024,
+            'height' => 1024,
+        ],
+        'sameAs' => $sameAs,
+    ];
+
+    $physician = [
+        '@type'             => 'Physician',
+        '@id'               => $site_url . '/#physician',
+        'name'              => 'Dr. Antonio Vilatela Gómez',
+        'url'               => $site_url . '/',
+        'image'             => $logo_url,
+        'jobTitle'          => 'Cirujano de Columna Vertebral',
+        'medicalSpecialty'  => ['OrthopedicSurgery'],
+        'identifier'        => [
+            '@type' => 'PropertyValue',
+            'name'  => 'Nº Colegiado',
+            'value' => '46/4623821',
+        ],
+        'description'       => 'Cirujano especialista en columna vertebral con más de 10 años de experiencia, dedicación exclusiva a la cirugía endoscópica biportal (UBE/ESUBE) y medicina regenerativa de columna guiada por ecografía. Consulta privada en Valencia.',
+        'memberOf'          => [
+            ['@type' => 'MedicalOrganization', 'name' => 'SECOT — Sociedad Española de Cirugía Ortopédica y Traumatología'],
+            ['@type' => 'MedicalOrganization', 'name' => 'SOTOCAV — Sociedad Valenciana de Traumatología y Cirugía Ortopédica'],
+            ['@type' => 'MedicalOrganization', 'name' => 'GEER — Grupo Español de Estudio de Enfermedades del Raquis'],
+            ['@type' => 'MedicalOrganization', 'name' => 'SILACO — Sociedad Iberoamericana de Columna'],
+        ],
+        'sameAs'            => $sameAs,
+        'worksFor'          => ['@id' => $site_url . '/#icem'],
+    ];
+
+    $clinic = [
+        '@type'             => 'MedicalClinic',
+        '@id'               => $site_url . '/#icem',
+        'name'              => 'ICEM Valencia — Instituto de Columna Mediterráneo',
+        'alternateName'     => 'ICEM',
+        'url'               => $site_url . '/',
+        'image'             => $logo_url,
+        'address'           => [
+            '@type'           => 'PostalAddress',
+            'streetAddress'   => 'Plaza de Manuel Sanchís Guarner, 7',
+            'addressLocality' => 'Valencia',
+            'postalCode'      => '46021',
+            'addressRegion'   => 'Comunidad Valenciana',
+            'addressCountry'  => 'ES',
+        ],
+        'telephone'         => '+34 621 35 26 13',
+        'priceRange'        => '€€',
+        'openingHoursSpecification' => [
+            [
+                '@type'     => 'OpeningHoursSpecification',
+                'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday'],
+                'opens'     => '09:00',
+                'closes'    => '20:00',
+            ],
+        ],
+        'medicalSpecialty'  => ['OrthopedicSurgery','Neurosurgery'],
+        'physician'         => ['@id' => $site_url . '/#physician'],
+        'parentOrganization'=> ['@id' => $site_url . '/#organization'],
+    ];
+
+    $graph = [
+        '@context' => 'https://schema.org',
+        '@graph'   => [$organization, $physician, $clinic],
+    ];
+
+    echo "\n<!-- drvilatela schema markup -->\n";
+    echo '<script type="application/ld+json">' . wp_json_encode($graph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+
+    // ============ FAQ Schema según página (APROBADO POR DR. — 2026-05-12) ============
+    global $post;
+    if (!$post) return;
+
+    $faqs = null;
+
+    if (is_front_page() || is_home()) {
+        $faqs = [
+            ['q'=>'¿Dónde opera el Dr. Vilatela en Valencia?',
+             'a'=>'El Dr. Antonio Vilatela opera principalmente en Hospital Casa de Salud (ICEM Valencia), Plaza de Manuel Sanchís Guarner 7, 46021 Valencia. También pasa consulta en Clínica Regenerat (Catarroja) y Clínicas Sospedra (Valencia).'],
+            ['q'=>'¿Qué seguros médicos acepta el Dr. Vilatela?',
+             'a'=>'La consulta es privada. No trabajamos con Asisa ni Adeslas. Para otros seguros privados, consulta las opciones de copago al solicitar cita.'],
+            ['q'=>'¿Cuántos años de experiencia tiene el Dr. Vilatela en cirugía de columna?',
+             'a'=>'Más de 10 años de experiencia quirúrgica dedicada a la columna vertebral. Especialista en Cirugía Ortopédica y Traumatología por el Hospital General Universitario de Valencia, con doctorado en Cirugía por la Universidad de Valencia. Miembro de SECOT, SOTOCAV, GEER y SILACO.'],
+            ['q'=>'¿Cuál es el precio de la primera consulta?',
+             'a'=>'La primera consulta privada con el Dr. Vilatela tiene un coste de 100€. Incluye revisión completa del historial, valoración clínica y, si dispones de pruebas de imagen recientes (RM/TAC), revisión conjunta en pantalla y orientación diagnóstico-terapéutica.'],
+            ['q'=>'¿Cuánto se tarda en conseguir cita con el Dr. Vilatela?',
+             'a'=>'Habitualmente 7-14 días desde la solicitud. Si tienes una situación clínica urgente, contacta con nosotros y haremos hueco lo antes posible.'],
+        ];
+    }
+    elseif ($post->post_name === 'cirujano-columna-valencia') {
+        $faqs = [
+            ['q'=>'¿Qué tipos de cirugía de columna realiza el Dr. Vilatela?',
+             'a'=>'Cirugía endoscópica biportal (UBE/ESUBE) como técnica de referencia, microcirugía cuando la lesión lo requiere, y cirugía abierta en casos complejos. También ofrece tratamiento regenerativo no quirúrgico (PRP guiado por ecografía) para casos seleccionados.'],
+        ];
+    }
+    elseif ($post->post_name === 'cirujano-endoscopia-columna-valencia') {
+        $faqs = [
+            ['q'=>'¿Qué diferencia hay entre cirugía endoscópica y cirugía abierta de columna?',
+             'a'=>'La cirugía endoscópica biportal (UBE) se realiza a través de 2 incisiones de 7 milímetros, con visualización HD vía endoscopio. La cirugía abierta requiere una incisión de 5-10 cm con mayor daño muscular, mayor sangrado y recuperación más larga. UBE tiene una tasa de complicaciones por debajo del 3% frente al 6-10% de la cirugía abierta.'],
+            ['q'=>'¿Cuánto dura la recuperación de una cirugía endoscópica de columna?',
+             'a'=>'Alta hospitalaria en 24h (incluso el mismo día en casos seleccionados). Conducir a los 5-7 días. Trabajo de oficina 10-14 días. Trabajo físico ligero 3-4 semanas. Trabajo físico intenso 6-8 semanas con autorización médica.'],
+        ];
+    }
+
+    if ($faqs) {
+        $faq_schema = [
+            '@context'   => 'https://schema.org',
+            '@type'      => 'FAQPage',
+            'mainEntity' => array_map(function ($f) {
+                return [
+                    '@type'          => 'Question',
+                    'name'           => $f['q'],
+                    'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']],
+                ];
+            }, $faqs),
+        ];
+        echo '<script type="application/ld+json">' . wp_json_encode($faq_schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+    }
+
+    echo "<!-- /drvilatela schema -->\n";
+}, 5);
