@@ -1,0 +1,36 @@
+<?php
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_find_active_faqs'])) return;
+
+    global $wpdb;
+
+    // Buscar snippets WPCode con estado y contenido FAQ relevante
+    $sql = "
+        SELECT p.ID, p.post_title, p.post_status,
+               pm_active.meta_value AS wpcode_active,
+               pm_loc.meta_value AS wpcode_location,
+               (CASE WHEN p.post_content LIKE %s THEN 1 ELSE 0 END) AS has_q_cuesta,
+               (CASE WHEN p.post_content LIKE %s THEN 1 ELSE 0 END) AS has_q_es_cirujano,
+               (CASE WHEN p.post_content LIKE %s THEN 1 ELSE 0 END) AS has_FAQPage,
+               LENGTH(p.post_content) AS code_len
+        FROM {$wpdb->posts} p
+        LEFT JOIN {$wpdb->postmeta} pm_active ON pm_active.post_id = p.ID AND pm_active.meta_key = '_wpcode_active'
+        LEFT JOIN {$wpdb->postmeta} pm_loc    ON pm_loc.post_id    = p.ID AND pm_loc.meta_key    = '_wpcode_auto_insert_location'
+        WHERE p.post_type = 'wpcode'
+          AND (p.post_content LIKE %s OR p.post_content LIKE %s OR p.post_content LIKE %s)
+        ORDER BY p.post_status, p.ID
+    ";
+    $rows = $wpdb->get_results($wpdb->prepare(
+        $sql,
+        '%Cuánto cuesta una consulta%',
+        '%Es el Dr. Vilatela un cirujano%',
+        '%FAQPage%',
+        '%Cuánto cuesta una consulta%',
+        '%Es el Dr. Vilatela un cirujano%',
+        '%FAQPage%'
+    ), ARRAY_A);
+
+    echo '<pre>' . esc_html(json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    exit;
+});
