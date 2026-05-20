@@ -1,0 +1,27 @@
+<?php
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_show_widget'])) return;
+
+    $page_id = 735;
+    $raw = get_post_meta($page_id, '_elementor_data', true);
+    $data = json_decode($raw, true);
+
+    $found = null;
+    $walker = function ($node) use (&$walker, &$found) {
+        if (!is_array($node) || $found) return;
+        if (isset($node['id']) && $node['id'] === '475407ea') {
+            $found = [
+                'id'         => $node['id'],
+                'widgetType' => $node['widgetType'] ?? '?',
+                'html_full'  => $node['settings']['html'] ?? '(no html)',
+            ];
+            return;
+        }
+        if (!empty($node['elements'])) foreach ($node['elements'] as $c) $walker($c);
+    };
+    foreach ($data as $top) $walker($top);
+
+    echo '<pre>' . esc_html(json_encode($found, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    exit;
+});
