@@ -1,0 +1,124 @@
+<?php
+/**
+ * CROSS-LINKING MASIVO desde todos los blog posts hacia pillar 735
+ * (BLOQUE C — boost nocturno SEO)
+ *
+ * Para cada post publicado del blog (post_type='post'), añade al final
+ * un bloque HTML con CTA hacia /cirujano-columna-valencia/.
+ *
+ * Idempotente: usa marker HTML <!--vlxlpillar735--> para detectar si ya está.
+ *
+ * Trigger one-shot: ?_run_xlink_blog=1
+ */
+
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_xlink_blog']) || $_GET['_run_xlink_blog'] !== '1') return;
+
+    global $wpdb;
+    $log = [];
+
+    // Listar todos los posts publish del blog
+    $posts = $wpdb->get_results(
+        "SELECT ID, post_title, post_name, post_type
+         FROM {$wpdb->posts}
+         WHERE post_type = 'post' AND post_status = 'publish'
+         ORDER BY ID ASC"
+    );
+    $log[] = "Posts publish encontrados: " . count($posts);
+
+    $marker = '<!--vlxlpillar735-->';
+    $css = '<style>.vlxlbp735{background:linear-gradient(135deg,#1B2A4A 0%,#2A3F6B 100%);color:#FFF8E7;border-radius:12px;padding:32px 26px;margin:32px 0;text-align:center}.vlxlbp735 h3{color:#FFF8E7;margin:0 0 10px;font-size:1.4em}.vlxlbp735 p{font-size:1.05em;margin:0 0 18px;color:#FFF8E7;opacity:0.95}.vlxlbp735 a.cta{display:inline-block;background:#25D366;color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-weight:700;transition:transform 0.2s}.vlxlbp735 a.cta:hover{transform:translateY(-2px);background:#1FAE54}.vlxlbp735 .lead{color:#25D366;font-weight:600;font-size:0.95em;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}</style>';
+
+    $block_html = $marker . "\n" . $css
+        . '<div class="vlxlbp735">'
+        . '<div class="lead">¿Necesitas valoración profesional?</div>'
+        . '<h3>Cirujano de columna en Valencia · Dr. Antonio Vilatela</h3>'
+        . '<p>Si estás considerando una intervención de columna, pide una valoración con el Dr. Antonio Vilatela, cirujano de columna en Valencia especialista en cirugía endoscópica biportal (UBE/ESUBE) y medicina regenerativa.</p>'
+        . '<a class="cta" href="/cirujano-columna-valencia/">Conocer al cirujano de columna →</a>'
+        . '</div>';
+
+    $added = 0;
+    $skipped = 0;
+    $elementor_skipped = 0;
+
+    foreach ($posts as $p) {
+        // Skip si ya tiene el marker en post_content
+        if (strpos($p->post_content ?? '', $marker) !== false) {
+            $skipped++;
+            continue;
+        }
+
+        // Verificar si usa Elementor (entonces NO tocar post_content, hacer otro flujo)
+        $eldata = get_post_meta($p->ID, '_elementor_data', true);
+        $is_elementor = !empty($eldata) && get_post_meta($p->ID, '_elementor_edit_mode', true) === 'builder';
+
+        if ($is_elementor) {
+            // Para Elementor: añadir container al final del _elementor_data
+            $data = json_decode($eldata, true);
+            if (!is_array($data)) {
+                $log[] = "post #$p->ID ($p->post_name): JSON inválido — skip";
+                $elementor_skipped++;
+                continue;
+            }
+            // Verificar idempotencia
+            $marker_id = 'vlxlp735bp';
+            $found = false;
+            $check = function ($node) use (&$check, $marker_id, &$found) {
+                if (!is_array($node)) return;
+                if (isset($node['id']) && $node['id'] === $marker_id) { $found = true; return; }
+                if (!empty($node['elements'])) foreach ($node['elements'] as $c) $check($c);
+            };
+            foreach ($data as $top) { $check($top); if ($found) break; }
+            if ($found) { $skipped++; continue; }
+
+            $container = [
+                'id'        => $marker_id,
+                'elType'    => 'container',
+                'settings'  => [
+                    'content_width' => 'boxed',
+                    'padding'       => ['top'=>'10','right'=>'10','bottom'=>'10','left'=>'10','unit'=>'px','isLinked'=>true],
+                ],
+                'elements'  => [[
+                    'id'         => 'vlxbpw',
+                    'elType'     => 'widget',
+                    'widgetType' => 'html',
+                    'settings'   => ['html' => $block_html],
+                ]],
+                'isInner'   => false,
+            ];
+            $data[] = $container;
+            $new_raw = wp_json_encode($data);
+            if ($new_raw !== false) {
+                update_post_meta($p->ID, '_elementor_data', wp_slash($new_raw));
+                clean_post_cache($p->ID);
+                $added++;
+            }
+        } else {
+            // Gutenberg/Classic: append al post_content
+            $new_content = $p->post_content . "\n\n" . $block_html;
+            wp_update_post([
+                'ID'           => $p->ID,
+                'post_content' => $new_content,
+            ]);
+            $added++;
+        }
+    }
+
+    $log[] = "Cross-link añadido: $added posts";
+    $log[] = "Skipped (ya tenían marker): $skipped posts";
+    if ($elementor_skipped) $log[] = "Elementor JSON inválido: $elementor_skipped posts";
+
+    // Purga global
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log[] = 'Elementor cache purgada';
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+        $log[] = 'LiteSpeed purga disparada';
+    }
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
