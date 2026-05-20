@@ -1,0 +1,33 @@
+<?php
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_show_snippets'])) return;
+
+    global $wpdb;
+    $out = [];
+    foreach ([769, 770] as $id) {
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID, post_title, post_status, post_content FROM {$wpdb->posts} WHERE ID = %d",
+            $id
+        ), ARRAY_A);
+        if (!$row) { $out[$id] = ['error' => 'not found']; continue; }
+
+        // Contar preguntas
+        $content = $row['post_content'];
+        preg_match_all('/[\'"]q[\'"]\s*=>/', $content, $m);
+        $n_q = count($m[0]);
+        // Buscar todas las preguntas extraídas
+        preg_match_all('/[\'"]q[\'"]\s*=>\s*[\'"]([^\'"]{5,150})[\'"]/', $content, $qs);
+
+        $out[$id] = [
+            'title' => $row['post_title'],
+            'status' => $row['post_status'],
+            'len' => strlen($content),
+            'n_questions_estimate' => $n_q,
+            'questions_preview' => array_map(function($q){ return mb_substr($q, 0, 60); }, $qs[1] ?? []),
+            'first_400_chars' => mb_substr($content, 0, 400),
+        ];
+    }
+    echo '<pre>' . esc_html(json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    exit;
+});
