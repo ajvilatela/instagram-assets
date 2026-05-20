@@ -1,0 +1,58 @@
+<?php
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_remove_widget_faq'])) return;
+
+    $page_id = 735;
+    $log = [];
+    $raw = get_post_meta($page_id, '_elementor_data', true);
+    $data = json_decode($raw, true);
+    if (!is_array($data)) { echo 'JSON invalido'; exit; }
+
+    $target_id = '475407ea';
+    $removed = 0;
+
+    // Walker que filtra recursivamente eliminando el target
+    $filter_recursive = function (&$arr) use (&$filter_recursive, $target_id, &$removed) {
+        if (!is_array($arr)) return;
+        $arr = array_values(array_filter($arr, function ($node) use ($target_id, &$removed) {
+            if (is_array($node) && isset($node['id']) && $node['id'] === $target_id) {
+                $removed++;
+                return false; // eliminar
+            }
+            return true; // mantener
+        }));
+        foreach ($arr as &$node) {
+            if (is_array($node) && !empty($node['elements'])) {
+                $filter_recursive($node['elements']);
+            }
+        }
+        unset($node);
+    };
+
+    $filter_recursive($data);
+    $log[] = "Widget '$target_id' eliminado: $removed instancia(s)";
+
+    if ($removed === 0) {
+        echo 'Widget no encontrado — nada que hacer';
+        exit;
+    }
+
+    $new_raw = wp_json_encode($data);
+    if ($new_raw === false) { echo 'json_encode fallo'; exit; }
+    update_post_meta($page_id, '_elementor_data', wp_slash($new_raw));
+    $log[] = '_elementor_data guardado';
+
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log[] = 'Elementor cache purgada';
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+        $log[] = 'LiteSpeed purga disparada';
+    }
+    clean_post_cache($page_id);
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
