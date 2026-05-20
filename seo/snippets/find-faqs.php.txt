@@ -1,0 +1,49 @@
+<?php
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_find_faqs'])) return;
+
+    global $wpdb;
+    $needle = 'Cuánto cuesta una consulta';
+
+    // Buscar en wp_posts
+    $posts = $wpdb->get_results($wpdb->prepare(
+        "SELECT ID, post_title, post_type, SUBSTRING(post_content, 1, 100) as preview
+         FROM {$wpdb->posts}
+         WHERE post_content LIKE %s
+         LIMIT 10",
+        '%' . $wpdb->esc_like($needle) . '%'
+    ), ARRAY_A);
+
+    // Buscar en wp_postmeta
+    $metas = $wpdb->get_results($wpdb->prepare(
+        "SELECT post_id, meta_key, SUBSTRING(meta_value, 1, 150) as preview, LENGTH(meta_value) as len
+         FROM {$wpdb->postmeta}
+         WHERE meta_value LIKE %s
+         LIMIT 20",
+        '%' . $wpdb->esc_like($needle) . '%'
+    ), ARRAY_A);
+
+    // Buscar en wp_options
+    $options = $wpdb->get_results($wpdb->prepare(
+        "SELECT option_name, SUBSTRING(option_value, 1, 150) as preview
+         FROM {$wpdb->options}
+         WHERE option_value LIKE %s
+         LIMIT 10",
+        '%' . $wpdb->esc_like($needle) . '%'
+    ), ARRAY_A);
+
+    // Lista snippets WPCode activos
+    $wpcode = $wpdb->get_results(
+        "SELECT ID, post_title FROM {$wpdb->posts} WHERE post_type = 'wpcode' AND post_status = 'publish' LIMIT 30",
+        ARRAY_A
+    );
+
+    echo '<pre>' . esc_html(json_encode([
+        'posts_with_needle' => $posts,
+        'metas_with_needle' => $metas,
+        'options_with_needle' => $options,
+        'wpcode_active_snippets' => $wpcode,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    exit;
+});
