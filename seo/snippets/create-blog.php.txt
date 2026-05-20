@@ -1,0 +1,189 @@
+<?php
+/**
+ * BLOQUE D — Crear blog post nuevo optimizado para "cirujano de columna en valencia"
+ * Slug: como-elegir-cirujano-columna-valencia
+ * Trigger: ?_run_create_blog=1 (idempotente: si existe, skip)
+ */
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_create_blog']) || $_GET['_run_create_blog'] !== '1') return;
+
+    $slug = 'como-elegir-cirujano-columna-valencia';
+    $existing = get_page_by_path($slug, OBJECT, 'post');
+    if ($existing) {
+        echo 'Post ya existe ID=' . $existing->ID . ' — skip';
+        exit;
+    }
+
+    $title = 'Cómo elegir un cirujano de columna en Valencia: guía completa 2026';
+
+    $content = <<<HTML
+<p><strong>Elegir bien el cirujano de columna en Valencia</strong> es una de las decisiones más importantes que vas a tomar si te han propuesto una intervención quirúrgica. No todas las cirugías son iguales, no todos los especialistas dominan las mismas técnicas, y la diferencia entre una recuperación de tres meses y una de tres semanas puede depender exactamente del profesional que elijas.</p>
+
+<p>En esta guía te explicamos los <strong>8 criterios objetivos</strong> que debes evaluar antes de decidir, las preguntas concretas que deberías hacer en la primera consulta, y las señales de alarma que conviene evitar. Está pensada para pacientes en la Comunidad Valenciana, donde la oferta de especialistas en columna es amplia pero muy desigual en calidad y enfoque.</p>
+
+<h2>1. Especialización exclusiva en columna vertebral</h2>
+
+<p>Un buen <strong>cirujano de columna en Valencia</strong> dedica el 100% de su práctica clínica a patología de columna vertebral. No es lo mismo un traumatólogo generalista que opera rodillas, hombros y columna ocasionalmente, que un cirujano especializado que solo trata columnas.</p>
+
+<p>La especialización exclusiva implica volumen — cientos de cirugías al año de la misma patología — y eso se traduce en menos complicaciones, mejor técnica y resultados más predecibles. Es el factor número uno y suele ser el más infravalorado por los pacientes.</p>
+
+<h2>2. Técnicas mínimamente invasivas que domina</h2>
+
+<p>La cirugía de columna ha cambiado radicalmente en los últimos 10 años. Hoy existen técnicas mínimamente invasivas que reducen drásticamente el daño muscular, el sangrado y el tiempo de recuperación. Las principales son:</p>
+
+<ul>
+<li><strong>Cirugía endoscópica biportal (UBE/ESUBE)</strong>: técnica de referencia internacional. Dos incisiones de 7 milímetros con visualización HD. Recuperación en días.</li>
+<li><strong>Microcirugía con microscopio quirúrgico</strong>: incisión pequeña con visión amplificada para casos donde la endoscopia no es la mejor opción.</li>
+<li><strong>Cirugía abierta convencional</strong>: reservada para casos complejos donde las técnicas mínimamente invasivas no son viables.</li>
+<li><strong>Medicina regenerativa de columna</strong>: PRP intradiscal guiado por ecografía, células mesenquimales — alternativa o complemento a la cirugía.</li>
+</ul>
+
+<p>Pregunta directamente: <em>"¿Qué técnicas dominas tú personalmente?"</em>. Si solo te ofrece cirugía abierta clásica, busca segunda opinión.</p>
+
+<h2>3. Volumen de cirugías realizadas al año</h2>
+
+<p>El volumen es un indicador objetivo y muy correlacionado con resultados. Los estudios internacionales sobre cirugía de columna muestran que los cirujanos que realizan <strong>más de 100 intervenciones al año</strong> tienen tasas de complicaciones significativamente menores que aquellos con bajo volumen quirúrgico.</p>
+
+<p>Pregunta cuántas cirugías similares a la tuya realiza al año. Una respuesta honesta y verificable es buena señal — una respuesta evasiva o vaga, no tanto.</p>
+
+<h2>4. Hospital donde opera y tecnología disponible</h2>
+
+<p>El cirujano no opera solo. Necesita un equipo (anestesia, enfermería instrumentista, asistente quirúrgico), un quirófano dedicado a columna, y tecnología específica:</p>
+
+<ul>
+<li><strong>Navegación 3D intraoperatoria (O-arm)</strong> para colocación precisa de tornillos y referencias anatómicas.</li>
+<li><strong>Equipo de endoscopia HD</strong> de marcas como Storz para cirugía biportal.</li>
+<li><strong>Microscopio quirúrgico</strong> y ecógrafo para tratamientos regenerativos guiados.</li>
+<li><strong>UCI y planta de hospitalización</strong> en el mismo centro por si surgen complicaciones.</li>
+</ul>
+
+<p>Pregunta dónde opera habitualmente y visita la web del hospital. Centros de referencia en Valencia para cirugía de columna incluyen <strong>Hospital Casa de Salud (ICEM)</strong>, Hospital IMED, Hospital IMSKE y Hospital General Universitario.</p>
+
+<h2>5. Formación, doctorado y sociedades médicas</h2>
+
+<p>La credibilidad académica importa. Mira:</p>
+
+<ul>
+<li><strong>Residencia MIR</strong> completada en hospital universitario de referencia.</li>
+<li><strong>Doctorado</strong> o investigación publicada en cirugía de columna.</li>
+<li><strong>Membresías</strong> en sociedades nacionales (SECOT, GEER, SOTOCAV) e internacionales (SILACO, NASS).</li>
+<li><strong>Formación continuada</strong>: congresos internacionales, cursos de actualización en UBE, fellowships.</li>
+</ul>
+
+<p>Estos datos suelen estar en la web del especialista o en su perfil en el hospital donde opera. Si no los encuentras, pregúntalos.</p>
+
+<h2>6. Reseñas reales de pacientes</h2>
+
+<p>Las reseñas en Google y plataformas verificadas (Doctoralia, Top Doctors) son una buena fuente de información, pero hay que leer con criterio:</p>
+
+<ul>
+<li>Más valor tienen las reseñas <strong>detalladas y específicas</strong> (qué patología, qué técnica, qué resultado a X meses) que las genéricas "muy bueno, lo recomiendo".</li>
+<li>Mira el <strong>patrón temporal</strong>: muchas reseñas en pocos días pueden indicar campaña artificial.</li>
+<li>Las <strong>reseñas críticas con respuesta profesional</strong> del médico son buena señal — indica transparencia.</li>
+</ul>
+
+<h2>7. Transparencia en precios y proceso</h2>
+
+<p>Un buen <strong>cirujano de columna en Valencia privada</strong> debería ser claro sobre:</p>
+
+<ul>
+<li>Precio de la primera consulta (típicamente 80-150€).</li>
+<li>Presupuesto detallado de la intervención (honorarios + quirófano + anestesia + estancia + material).</li>
+<li>Qué seguros médicos acepta y cuáles no.</li>
+<li>Plazos realistas para diagnóstico y cirugía.</li>
+</ul>
+
+<p>La opacidad en precios o la presión comercial son red flags.</p>
+
+<h2>8. Atención y seguimiento postoperatorio</h2>
+
+<p>La cirugía termina el día que entras a quirófano, pero la recuperación dura semanas o meses. Pregunta:</p>
+
+<ul>
+<li>¿Cuántas revisiones postoperatorias incluye el precio?</li>
+<li>¿Hay un canal directo de contacto (WhatsApp/teléfono) para dudas urgentes?</li>
+<li>¿Coordina con fisioterapeuta para la rehabilitación?</li>
+<li>¿Qué hace si surge una complicación?</li>
+</ul>
+
+<h2>5 preguntas que debes hacer en la primera consulta</h2>
+
+<p>Llega preparado con estas preguntas concretas:</p>
+
+<ol>
+<li><strong>"¿Cuántos pacientes con mi patología has operado en el último año?"</strong> — busca volumen y experiencia.</li>
+<li><strong>"¿Qué técnicas alternativas existen para mi caso y por qué recomiendas esta concretamente?"</strong> — busca razonamiento clínico, no piloto automático.</li>
+<li><strong>"¿Qué tasa de complicaciones tienes en este tipo de intervención?"</strong> — busca honestidad y datos.</li>
+<li><strong>"¿Qué pasa si la cirugía no funciona como esperamos?"</strong> — busca plan B realista.</li>
+<li><strong>"¿Puedes darme una segunda opinión por escrito si la pido?"</strong> — busca apertura y confianza.</li>
+</ol>
+
+<h2>Red flags que debes evitar</h2>
+
+<p>Señales de alarma claras al elegir <strong>cirujano de columna en Valencia</strong>:</p>
+
+<ul>
+<li>🚩 <strong>Diagnóstico rápido sin pruebas de imagen</strong>: nadie debería proponerte cirugía sin RM o TAC recientes en mano.</li>
+<li>🚩 <strong>Presión para operar urgentemente</strong> sin justificación clínica clara (déficit neurológico, síndrome de cola de caballo).</li>
+<li>🚩 <strong>Una sola técnica para todo</strong>: si solo te ofrece la técnica que él domina sin valorar alternativas.</li>
+<li>🚩 <strong>Opacidad en precios</strong> o presupuestos vagos.</li>
+<li>🚩 <strong>Sin presencia digital ni perfil profesional verificable</strong> (web, hospital, sociedades médicas).</li>
+<li>🚩 <strong>Promesas absolutas de resultado</strong>: "te quitaré el dolor 100%". La medicina no funciona así.</li>
+</ul>
+
+<h2>Antes de operarte: la segunda opinión</h2>
+
+<p>Si te han propuesto cirugía, <strong>siempre pide segunda opinión profesional</strong>. No es desconfianza, es buena medicina. Un buen cirujano lo entenderá y te facilitará la documentación (RM, informes) para que otro especialista pueda evaluar tu caso.</p>
+
+<p>Una segunda opinión puede confirmar la indicación quirúrgica, proponer una técnica alternativa menos invasiva, o incluso recomendar tratamiento conservador o regenerativo antes de pasar por quirófano. <a href="/segunda-opinion-columna-valencia/">Más información sobre segundas opiniones de columna en Valencia</a>.</p>
+
+<h2>Conclusión: tómate tu tiempo</h2>
+
+<p>La cirugía de columna no es una urgencia salvo en casos muy concretos. <strong>Tienes tiempo para investigar, comparar y decidir bien</strong>. Una semana extra evaluando opciones es infinitamente menos importante que años viviendo con las consecuencias de una intervención mal elegida.</p>
+
+<p>Si quieres conocer al <strong>Dr. Antonio Vilatela</strong>, cirujano de columna en Valencia especialista en cirugía endoscópica biportal (UBE/ESUBE) y medicina regenerativa, puedes consultar su <a href="/cirujano-columna-valencia/">perfil profesional completo</a> o pedir cita directamente.</p>
+
+<p><em>Esta guía es informativa y no sustituye al consejo médico individualizado. Cualquier decisión sobre intervención quirúrgica debe tomarse tras evaluación clínica completa por un especialista cualificado.</em></p>
+HTML;
+
+    // Insertar el post
+    $post_id = wp_insert_post([
+        'post_title'    => $title,
+        'post_name'     => $slug,
+        'post_content'  => $content,
+        'post_status'   => 'publish',
+        'post_type'     => 'post',
+        'post_author'   => 1,
+        'post_category' => [1], // Uncategorized — se puede mover después
+        'meta_input'    => [
+            'rank_math_title'       => 'Cómo elegir cirujano de columna en Valencia · Guía 2026',
+            'rank_math_description' => 'Guía 2026 para elegir cirujano de columna en Valencia: 8 criterios, 5 preguntas y red flags. Por el Dr. Antonio Vilatela, especialista en UBE/ESUBE.',
+            'rank_math_focus_keyword' => 'cirujano de columna en valencia',
+        ],
+    ], true);
+
+    if (is_wp_error($post_id)) {
+        echo 'ERROR: ' . $post_id->get_error_message();
+        exit;
+    }
+
+    // Set meta description en post_excerpt también
+    wp_update_post([
+        'ID' => $post_id,
+        'post_excerpt' => 'Guía completa para elegir cirujano de columna en Valencia: 8 criterios objetivos, preguntas a hacer en consulta, red flags a evitar y por qué pedir segunda opinión.',
+    ]);
+
+    // Purga
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+    }
+    clean_post_cache($post_id);
+
+    $permalink = get_permalink($post_id);
+    echo "POST CREADO id=$post_id\nURL: $permalink\nTítulo: $title\nPalabras: " . str_word_count(strip_tags($content));
+    exit;
+});
