@@ -1,0 +1,125 @@
+<?php
+/**
+ * Pillar 735 SEO booster:
+ * - RankMath title <60 chars + meta description optimizada
+ * - Sección "Especialista en cirugía de columna vertebral" (refuerzo semántico)
+ * - Sección "Dónde encontrarme en Valencia" (Local SEO + Google Maps)
+ * - Alt text del hero
+ * Idempotente: skip si markers ya existen
+ */
+
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_run_p735_seo']) || $_GET['_run_p735_seo'] !== '1') return;
+
+    $page_id = 735;
+    $log = [];
+
+    // ============ 1. RankMath title + description ============
+    $new_title = 'Cirujano de Columna en Valencia · Dr. Vilatela';
+    $new_desc  = 'Cirujano de columna vertebral en Valencia especialista en cirugía endoscópica biportal (UBE) y medicina regenerativa. Consulta privada con Dr. Vilatela · ICEM.';
+    update_post_meta($page_id, 'rank_math_title', $new_title);
+    update_post_meta($page_id, 'rank_math_description', $new_desc);
+    $log[] = 'RankMath title (' . strlen($new_title) . ' chars) y description (' . strlen($new_desc) . ' chars) actualizados';
+
+    // ============ 2. Construir HTML de las 2 nuevas secciones ============
+    $css_cv = '<style>.vlxlpcv{background:#F5F7FA;border-radius:14px;padding:38px 32px;margin:24px 0;border-left:4px solid #25D366}.vlxlpcv h2{color:#1B2A4A;margin-top:0;font-size:1.5em}.vlxlpcv p{color:#333;font-size:1.05em;line-height:1.6;margin-bottom:12px}</style>';
+    $html_cv = $css_cv . '<div class="vlxlpcv"><h2>Especialista en cirugía de columna vertebral en Valencia</h2><p>La columna vertebral es la estructura ósea que sostiene el cuerpo, protege la médula espinal y permite el movimiento del tronco. Cuando una patología de la columna vertebral genera dolor crónico, déficit neurológico o pérdida de calidad de vida, puede requerir tratamiento quirúrgico especializado.</p><p>Como cirujano de columna vertebral en Valencia, el Dr. Antonio Vilatela ofrece tratamiento integral de patologías cervicales, dorsales y lumbares: hernias discales, estenosis de canal, espondilolistesis, escoliosis degenerativa, lesiones traumáticas y procesos degenerativos. Cada plan terapéutico parte de un diagnóstico individualizado mediante revisión completa de pruebas de imagen (RM, TAC) y evaluación clínica.</p></div>';
+
+    $css_loc = '<style>.vlxlploc{background:#1B2A4A;color:#FFF8E7;border-radius:14px;padding:38px 32px;margin:24px 0}.vlxlploc h2{color:#FFF8E7;margin-top:0;font-size:1.6em;text-align:center}.vlxlploc .vlxlgrid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:24px;align-items:center}@media(max-width:768px){.vlxlploc .vlxlgrid{grid-template-columns:1fr}}.vlxlploc .info p{margin:8px 0;font-size:1.05em;color:#FFF8E7}.vlxlploc .info .label{color:#25D366;font-weight:600;display:block;margin-top:14px;font-size:0.95em}.vlxlploc a{color:#25D366;text-decoration:underline}.vlxlploc iframe{border-radius:10px;width:100%;height:300px;border:0}</style>';
+    $html_loc = $css_loc . '<div class="vlxlploc"><h2>Dónde encontrarme en Valencia</h2><div class="vlxlgrid"><div class="info"><span class="label">📍 Dirección</span><p>ICEM · Instituto de Columna Mediterráneo<br>Hospital Casa de Salud<br>Plaza de Manuel Sanchís Guarner, 7<br>46021 Valencia, España</p><span class="label">📞 Teléfono / WhatsApp</span><p><a href="tel:+34621352613">+34 621 35 26 13</a></p><span class="label">✉️ Email</span><p><a href="mailto:dr.vilatela@gmail.com">dr.vilatela@gmail.com</a></p><span class="label">🕐 Horario consulta</span><p>Lunes a Viernes · 09:00 — 20:00</p></div><div class="map"><iframe loading="lazy" src="https://www.google.com/maps?q=Plaza+de+Manuel+Sanchis+Guarner+7,+46021+Valencia&output=embed" allowfullscreen></iframe></div></div></div>';
+
+    // ============ 3. Walker para inyectar secciones al final ============
+    $raw = get_post_meta($page_id, '_elementor_data', true);
+    if (empty($raw)) { echo 'No _elementor_data'; exit; }
+    $data = json_decode($raw, true);
+    if (!is_array($data)) { echo 'JSON invalido'; exit; }
+
+    $sections = [
+        'vlxlpcv'  => $html_cv,
+        'vlxlploc' => $html_loc,
+    ];
+
+    // Detectar markers existentes
+    $existing = [];
+    $check = function ($node) use (&$check, &$existing, $sections) {
+        if (!is_array($node)) return;
+        if (isset($node['id']) && isset($sections[$node['id']])) $existing[] = $node['id'];
+        if (!empty($node['elements'])) foreach ($node['elements'] as $c) $check($c);
+    };
+    foreach ($data as $top) $check($top);
+
+    $build_container = function ($marker_id, $html) {
+        return [
+            'id'        => $marker_id,
+            'elType'    => 'container',
+            'settings'  => [
+                'content_width' => 'boxed',
+                'padding'       => ['top'=>'20','right'=>'20','bottom'=>'20','left'=>'20','unit'=>'px','isLinked'=>true],
+            ],
+            'elements'  => [[
+                'id'         => substr($marker_id, 0, 6) . 'w',
+                'elType'     => 'widget',
+                'widgetType' => 'html',
+                'settings'   => ['html' => $html],
+            ]],
+            'isInner'   => false,
+        ];
+    };
+
+    foreach ($sections as $marker => $html) {
+        if (in_array($marker, $existing, true)) {
+            $log[] = "marker '$marker' ya existe (skip)";
+            continue;
+        }
+        $data[] = $build_container($marker, $html);
+        $log[] = "container '$marker' añadido al final";
+    }
+
+    // ============ 4. Update alt text del primer image widget que no lo tenga ============
+    $hero_updated = false;
+    $walker_alt = function (&$node) use (&$walker_alt, &$hero_updated) {
+        if ($hero_updated || !is_array($node)) return;
+        if (isset($node['widgetType']) && in_array($node['widgetType'], ['image', 'twbb_image'], true)) {
+            if (isset($node['settings']) && is_array($node['settings'])) {
+                foreach ($node['settings'] as $k => &$v) {
+                    if (is_array($v) && isset($v['url']) && (empty($v['alt']) || strlen($v['alt']) < 5)) {
+                        $v['alt'] = 'Dr. Antonio Vilatela, cirujano de columna en Valencia, en consulta';
+                        $hero_updated = true;
+                        // También actualizar el attachment meta si tiene id
+                        if (!empty($v['id'])) {
+                            update_post_meta((int)$v['id'], '_wp_attachment_image_alt', 'Dr. Antonio Vilatela, cirujano de columna en Valencia');
+                        }
+                        return;
+                    }
+                }
+                unset($v);
+            }
+        }
+        if (!empty($node['elements'])) foreach ($node['elements'] as &$c) { $walker_alt($c); }
+        unset($c);
+    };
+    foreach ($data as &$top) { $walker_alt($top); }
+    unset($top);
+    $log[] = $hero_updated ? 'alt text del hero actualizado' : 'no se encontró hero image sin alt';
+
+    // ============ 5. Guardar ============
+    $new_raw = wp_json_encode($data);
+    if ($new_raw === false) { echo 'json_encode fallo'; exit; }
+    update_post_meta($page_id, '_elementor_data', wp_slash($new_raw));
+    $log[] = '_elementor_data guardado';
+
+    // ============ 6. Purgar cachés ============
+    if (class_exists('\\Elementor\\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log[] = 'Elementor cache purgada';
+    }
+    if (has_action('litespeed_purge_all')) {
+        do_action('litespeed_purge_all');
+        $log[] = 'LiteSpeed purga disparada';
+    }
+    clean_post_cache($page_id);
+
+    echo nl2br(esc_html(implode("\n", $log)));
+    exit;
+});
