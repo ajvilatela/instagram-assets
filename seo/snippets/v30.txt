@@ -1,0 +1,486 @@
+
+/* ============ APPENDED 2026-06-12 — v30 EN VERSIONS OF 8 LANDINGS ============ */
+// Marker: vlx_v30_en_landings
+
+// Schema EN para las 8 landings inglesas
+add_filter('rank_math/json_ld', function ($data, $jsonld) {
+    if (!is_singular('page')) return $data;
+    $slug = get_post_field('post_name', get_queried_object_id());
+    $map = array(
+        'cervical-disc-herniation-valencia' => 'Cervical disc herniation treatment',
+        'adult-scoliosis-valencia' => 'Adult scoliosis treatment',
+        'spondylolisthesis-valencia' => 'Spondylolisthesis treatment',
+        'disc-replacement-arthroplasty-valencia' => 'Disc replacement (arthroplasty)',
+        'lumbar-fusion-valencia' => 'Lumbar fusion (arthrodesis)',
+        'osteoporotic-vertebral-fracture-valencia' => 'Osteoporotic vertebral fracture treatment',
+        'discogel-liquid-disc-prosthesis-valencia' => 'Liquid disc prosthesis (Discogel)',
+        'prp-spine-valencia' => 'PRP (Platelet-Rich Plasma) for the spine',
+    );
+    if (!isset($map[$slug])) return $data;
+    $data['vlxEnProc'] = array(
+        '@context' => 'https://schema.org', '@type' => 'MedicalProcedure',
+        'name' => $map[$slug],
+        'bodyLocation' => 'Spine',
+        'performer' => array('@id' => 'https://drvilatela.es/#physician-icem'),
+    );
+    $data['vlxEnPage'] = array(
+        '@context' => 'https://schema.org', '@type' => 'MedicalWebPage',
+        'name' => $map[$slug] . ' in Valencia',
+        'medicalAudience' => 'https://schema.org/Patient',
+        'reviewedBy' => array('@id' => 'https://drvilatela.es/#physician-icem'),
+        'specialty' => 'https://schema.org/OrthopedicSurgery',
+        'inLanguage' => 'en',
+    );
+    return $data;
+}, 50, 2);
+
+// Parser body vlx-pt → widgets (soporta token {{IMG:url|id|alt}})
+function vlx_v30_parse($body) {
+    $widgets = array();
+    $parts = preg_split('#<h2>(.*?)</h2>#s', $body, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $intro = trim($parts[0]);
+    if ($intro !== '') $widgets = array_merge($widgets, vlx_v30_chunk($intro));
+    $n = count($parts);
+    for ($i = 1; $i < $n; $i += 2) {
+        $title = trim($parts[$i]);
+        $html = isset($parts[$i + 1]) ? trim($parts[$i + 1]) : '';
+        if (stripos($title, 'Frequently asked') !== false || stripos($title, 'FAQ') !== false) {
+            $widgets[] = vlx_v25_heading($title, 'h2');
+            $tabs = array();
+            if (preg_match_all('#<dt>(.*?)</dt>\s*<dd>(.*?)</dd>#s', $html, $faqs, PREG_SET_ORDER)) {
+                foreach ($faqs as $f) $tabs[] = array('_id' => vlx_v23_eid(), 'tab_title' => wp_strip_all_tags($f[1]), 'tab_content' => '<p>' . trim($f[2]) . '</p>');
+            }
+            if ($tabs) $widgets[] = vlx_v23_widget('toggle', array('tabs' => $tabs));
+            continue;
+        }
+        $widgets[] = vlx_v25_heading($title, 'h2');
+        $alerts = array();
+        $html = preg_replace_callback('#<div class="vlx-pt-alert">(.*?)</div>#s', function ($m) use (&$alerts) { $alerts[] = trim($m[1]); return ''; }, $html);
+        if (preg_match('#<div class="vlx-pt-grid">\s*((?:<div class="vlx-pt-card">.*?</div>\s*)+)</div>#s', $html, $gm)) {
+            $cards = array();
+            if (preg_match_all('#<div class="vlx-pt-card"><strong>(.*?)</strong>(.*?)</div>#s', $gm[1], $cs, PREG_SET_ORDER)) {
+                foreach ($cs as $c) $cards[] = vlx_v25_card(trim($c[1]), trim($c[2]));
+            }
+            $html = preg_replace('#<div class="vlx-pt-grid">\s*(?:<div class="vlx-pt-card">.*?</div>\s*)+</div>#s', '', $html);
+            $rest = trim($html);
+            if ($rest !== '') $widgets = array_merge($widgets, vlx_v30_chunk($rest));
+            if ($cards) $widgets[] = vlx_v25_cards_row($cards);
+        } else {
+            $rest = trim($html);
+            if ($rest !== '') $widgets = array_merge($widgets, vlx_v30_chunk($rest));
+        }
+        foreach ($alerts as $a) $widgets[] = vlx_v25_alertbox($a);
+    }
+    return $widgets;
+}
+// Trocea un bloque de texto separando los tokens {{IMG:url|id|alt}} en widgets de imagen
+function vlx_v30_chunk($html) {
+    $out = array();
+    $pieces = preg_split('#\{\{IMG:(.*?)\}\}#s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+    foreach ($pieces as $idx => $piece) {
+        if ($idx % 2 === 1) {
+            list($url, $id, $alt) = array_pad(explode('|', $piece), 3, '');
+            $out[] = vlx_v29_image($url, (int)$id, $alt);
+        } else {
+            $t = trim($piece);
+            if ($t !== '') $out[] = vlx_v25_text($t);
+        }
+    }
+    return $out;
+}
+
+function vlx_v30_build($a) {
+    global $wpdb;
+    $exist = get_page_by_path($a['slug']);
+    if ($exist) { $pid = $exist->ID; }
+    else {
+        $pid = wp_insert_post(array(
+            'post_title' => $a['title'], 'post_name' => $a['slug'], 'post_content' => '',
+            'post_status' => 'publish', 'post_type' => 'page',
+            'comment_status' => 'closed', 'ping_status' => 'closed',
+            'meta_input' => array(
+                'rank_math_title' => $a['rm_title'],
+                'rank_math_description' => $a['rm_desc'],
+                'rank_math_focus_keyword' => $a['kw'],
+                '_vlx_v30_en' => '1',
+            ),
+        ), true);
+        if (is_wp_error($pid)) return 'ERR: ' . $pid->get_error_message();
+    }
+    // Polylang: idioma EN + vincular traducción
+    if (function_exists('pll_set_post_language')) {
+        pll_set_post_language($pid, 'en');
+        if (!empty($a['es_id']) && function_exists('pll_save_post_translations')) {
+            pll_save_post_translations(array('es' => (int)$a['es_id'], 'en' => (int)$pid));
+        }
+    }
+    $w = vlx_v30_parse($a['body']);
+    $tree = array();
+    $tree[] = vlx_v23_container(array(
+        'background_background' => 'classic', 'background_color' => '#283566',
+        'content_width' => 'boxed', 'flex_direction' => 'column', 'flex_align_items' => 'center',
+        'padding' => array('unit' => 'px', 'top' => '60', 'right' => '24', 'bottom' => '60', 'left' => '24', 'isLinked' => false),
+    ), array(
+        vlx_v23_widget('heading', array('title' => $a['hero_title'], 'header_size' => 'h1', 'align' => 'center', 'title_color' => '#FFFFFF')),
+        vlx_v23_widget('text-editor', array('editor' => '<p>' . $a['hero_sub'] . '</p>', 'align' => 'center', 'text_color' => '#E8ECF4')),
+    ));
+    $tree[] = vlx_v23_container(array(
+        'content_width' => 'boxed', 'flex_direction' => 'column',
+        'padding' => array('unit' => 'px', 'top' => '30', 'right' => '24', 'bottom' => '30', 'left' => '24', 'isLinked' => false),
+    ), $w);
+    $tree[] = vlx_v23_container(array(
+        'background_background' => 'classic', 'background_color' => '#283566',
+        'content_width' => 'boxed', 'flex_direction' => 'column', 'flex_align_items' => 'center',
+        'padding' => array('unit' => 'px', 'top' => '50', 'right' => '24', 'bottom' => '50', 'left' => '24', 'isLinked' => false),
+    ), array(
+        vlx_v23_widget('heading', array('title' => $a['cta_title'], 'header_size' => 'h2', 'align' => 'center', 'title_color' => '#FFFFFF')),
+        vlx_v23_widget('text-editor', array('editor' => '<p>' . $a['cta_text'] . '</p>', 'align' => 'center', 'text_color' => '#E8ECF4')),
+        vlx_v23_widget('button', array('text' => $a['cta_anchor'], 'link' => array('url' => '/en/contact/', 'is_external' => '', 'nofollow' => ''), 'align' => 'center', 'background_color' => '#25D366', 'button_text_color' => '#FFFFFF')),
+    ));
+    $json = wp_json_encode($tree, JSON_UNESCAPED_UNICODE);
+    update_post_meta($pid, '_elementor_data', wp_slash($json));
+    update_post_meta($pid, '_elementor_edit_mode', 'builder');
+    update_post_meta($pid, '_elementor_template_type', 'wp-page');
+    update_post_meta($pid, '_elementor_version', '3.24.6');
+    update_post_meta($pid, '_wp_page_template', 'default');
+    if (!empty($a['thumb'])) set_post_thumbnail($pid, (int)$a['thumb']);
+    wp_update_post(array('ID' => $pid));
+    clean_post_cache($pid);
+    return 'OK ID ' . $pid . ' (' . strlen($json) . ' bytes)';
+}
+
+add_action('admin_init', function () {
+    if (!current_user_can('manage_options')) return;
+    if (empty($_GET['_v30_en'])) return;
+    $log = array('ts' => current_time('mysql'));
+    $cta_anchor = 'Book a consultation';
+    $img_estr = '{{IMG:https://drvilatela.es/wp-content/uploads/2026/06/estructura-sangre-centrifugada-prp-valencia.jpg|898|Infographic: structure of centrifuged blood for PRP (platelet-poor plasma, platelet-rich plasma and red blood cells)}}';
+    $img_inf = '{{IMG:https://drvilatela.es/wp-content/uploads/2026/06/infiltracion-prp-columna-facetaria-valencia.jpg|897|Infographic: PRP infiltration into the lumbar spine facet joints — Dr. Vilatela, Valencia}}';
+
+    $landings = array(
+
+        array(
+            'slug' => 'cervical-disc-herniation-valencia', 'es_id' => 867,
+            'title' => 'Cervical Disc Herniation in Valencia — Treatment',
+            'rm_title' => 'Cervical Disc Herniation Valencia · Treatment | Dr. Vilatela',
+            'rm_desc' => 'Neck pain radiating down the arm may be a cervical disc herniation. From conservative care to minimally invasive surgery, in Valencia.',
+            'kw' => 'cervical disc herniation valencia',
+            'hero_title' => 'Cervical disc herniation: when neck pain travels down the arm',
+            'hero_sub' => 'Diagnosis and treatment of cervical disc herniation and cervicobrachialgia in Valencia — Dr. Antonio Vilatela, 3,500+ spine procedures.',
+            'cta_title' => 'Neck pain radiating into your arm?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'Dr. Vilatela reviews your case in private consultation at Hospital La Salud Valencia and explains every option, from the least to the most invasive.',
+            'body' =>
+'<p>Neck pain is common and usually benign. But when that pain starts to <strong>travel down the arm</strong> —with tingling in the fingers, loss of grip strength or electric-shock sensations on neck movement— we call it <strong>cervicobrachialgia</strong>, and its most common cause is a <strong>cervical disc herniation</strong> compressing a nerve root.</p>
+<h2>Characteristic symptoms</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Radiating pain</strong>From the neck to the shoulder, arm and hand, following the path of the compressed nerve.</div>
+<div class="vlx-pt-card"><strong>Tingling and numbness</strong>In specific fingers depending on the affected root (thumb, middle fingers or little finger).</div>
+<div class="vlx-pt-card"><strong>Loss of strength</strong>Difficulty gripping objects, opening jars or raising the arm.</div>
+<div class="vlx-pt-card"><strong>Worse with the neck</strong>Certain movements or sustained postures reignite the pain.</div>
+</div>
+<h2>Why does it happen?</h2>
+<p>The cervical discs cushion the vertebrae of the neck. Over the years —or after strain and sustained postures— a disc can crack and push part of its nucleus toward the canal, compressing the nerve root that runs to the arm. Cervical disc degeneration is a natural process; the symptomatic herniation is its most troublesome expression.</p>
+<h2>Diagnosis</h2>
+<p>The neurological examination indicates which root is affected; the <strong>cervical MRI</strong> confirms the herniation, its size and its relationship with the spinal cord and roots. In selected cases it is completed with electromyography to quantify nerve damage.</p>
+<h2>Treatment: from least to most</h2>
+<p><strong>1. Conservative (most cases).</strong> Scheduled analgesia, specific cervical physiotherapy and temporary activity modification. Most cervicobrachialgia improves significantly within 6–12 weeks without surgery.</p>
+<p><strong>2. Image-guided injections.</strong> When radicular pain persists, a guided cervical foraminal or epidural injection reduces inflammation of the root and speeds recovery.</p>
+<p><strong>3. Minimally invasive surgery.</strong> Considered with progressive loss of strength, signs of spinal cord compression or disabling pain that does not respond. Options include cervical discectomy with a <a href="/en/disc-replacement-arthroplasty-valencia/">disc prosthesis (arthroplasty)</a> to preserve mobility, or with fusion of the segment.</p>
+<div class="vlx-pt-alert"><strong>Warning signs:</strong> rapidly progressive loss of strength, clumsiness in the hands when buttoning clothes, gait or balance disturbances. These may indicate spinal cord compression (myelopathy) and require urgent assessment. If it is an emergency, go to the hospital emergency department.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Can a cervical herniation heal without surgery?</dt><dd>Yes: most improve with conservative treatment within 2–3 months. Surgery is reserved for cases with neurological deficit or refractory pain.</dd>
+<dt>Disc prosthesis or fusion: which is better?</dt><dd>It depends on age, joint condition and the number of levels involved. The prosthesis preserves mobility; fusion is more versatile. It is decided case by case.</dd>
+<dt>How long before returning to work after cervical surgery?</dt><dd>For office work, usually 2–4 weeks; for physical work, 6–12 weeks, always on an individualized basis.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'adult-scoliosis-valencia', 'es_id' => 868,
+            'title' => 'Adult Scoliosis in Valencia — Diagnosis and Treatment',
+            'rm_title' => 'Adult Scoliosis Valencia · Treatment | Dr. Vilatela',
+            'rm_desc' => 'Adult scoliosis can cause low back pain and progressive deformity. Specialist assessment, pain control and surgery only in selected cases.',
+            'kw' => 'adult scoliosis valencia',
+            'hero_title' => 'Adult scoliosis: more than a curve in the back',
+            'hero_sub' => 'Assessment and treatment of adult degenerative scoliosis in Valencia — pain control, function and quality of life.',
+            'cta_title' => 'Scoliosis with pain or progression?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'A specialist assessment determines whether your scoliosis needs only monitoring, pain treatment or surgery. No alarmism and no commercial pressure.',
+            'body' =>
+'<p>Scoliosis is not just "a teenager thing". In adults, the spine can curve due to <strong>asymmetric degeneration</strong> of discs and joints (degenerative or "de novo" scoliosis) or due to progression of a juvenile curve. The result: mechanical low back pain, a sense of trunk imbalance and, at times, sciatica from compression of roots on the concave side of the curve.</p>
+<h2>When does adult scoliosis become a concern?</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Progressive pain</strong>Low back pain that increases through the day and with prolonged standing.</div>
+<div class="vlx-pt-card"><strong>Trunk imbalance</strong>A sensation of leaning forward or to one side when walking.</div>
+<div class="vlx-pt-card"><strong>Neurological symptoms</strong>Sciatica or claudication from stenosis associated with the curve.</div>
+<div class="vlx-pt-card"><strong>Documented progression</strong>Increase in the curve angle on successive X-rays.</div>
+</div>
+<h2>Diagnosis: measure to decide</h2>
+<p>The <strong>full-spine standing X-ray</strong> allows measurement of the Cobb angle and the sagittal balance parameters (the relationship between spine, pelvis and hips). The MRI assesses discs, associated stenosis and roots. Without these objective measurements no serious decision can be made.</p>
+<h2>Treatment</h2>
+<p><strong>1. Conservative: the basis in the vast majority.</strong> Specific trunk-strengthening exercise, weight control, physiotherapy and rational analgesia. In adults, a brace is used only as a punctual comfort measure, not to correct the curve.</p>
+<p><strong>2. Interventional pain treatment.</strong> Image-guided facet or foraminal injections when specific pain generators are identified.</p>
+<p><strong>3. Surgery: selected cases only.</strong> Reserved for progressive curves with significant imbalance, disabling refractory pain or neurological deficit. It can range from <a href="/en/spondylolisthesis-valencia/">focal decompression</a> of a trapped root to instrumented correction of the deformity in severe cases. The current trend is to operate <em>the minimum necessary for the patient&rsquo;s goal</em>: to relieve pain and maintain function, not to chase cosmetic correction of the curve.</p>
+<div class="vlx-pt-alert"><strong>Important:</strong> adult scoliosis without pain or documented progression generally needs only periodic monitoring. Be wary of surgical recommendations without comparative X-rays or measurement of balance parameters. A <a href="/en/international-patients/">second opinion</a> is especially valuable in this condition.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Does adult scoliosis always keep getting worse?</dt><dd>Not always. Degenerative curves may progress slowly; periodic X-ray monitoring determines this.</dd>
+<dt>Can exercise straighten the curve?</dt><dd>It does not correct the angle, but it does improve pain, functional posture and quality of life — which is the real goal of treatment in adults.</dd>
+<dt>Does every scoliosis with sciatica need major surgery?</dt><dd>No. If the problem is a root compressed at a specific point, a focal minimally invasive decompression can resolve the symptom without correcting the whole curve.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'spondylolisthesis-valencia', 'es_id' => 869,
+            'title' => 'Spondylolisthesis in Valencia — When a Vertebra Slips',
+            'rm_title' => 'Spondylolisthesis Valencia · Treatment | Dr. Vilatela',
+            'rm_desc' => 'Spondylolisthesis (vertebral slippage) causes low back pain and sciatica. Conservative treatment, endoscopic decompression and fusion in Valencia.',
+            'kw' => 'spondylolisthesis valencia',
+            'hero_title' => 'Spondylolisthesis: when one vertebra slips over another',
+            'hero_sub' => 'Diagnosis and treatment of vertebral slippage in Valencia — from specific exercise to minimally invasive surgery.',
+            'cta_title' => 'Have you been diagnosed with spondylolisthesis?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'Not all of them need surgery. Dr. Vilatela reviews your MRI and dynamic X-rays and guides you on the right path for your grade and symptoms.',
+            'body' =>
+'<p><strong>Spondylolisthesis</strong> is the slippage of one vertebra over the one below, almost always in the lower lumbar spine (L4-L5 or L5-S1). It may be due to a defect of the vertebral arch of juvenile origin (isthmic spondylolisthesis) or to degeneration of discs and joints over the years (degenerative, the most common after age 50).</p>
+<h2>What symptoms does it cause?</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Mechanical low back pain</strong>Worse standing and walking, better sitting or lying down.</div>
+<div class="vlx-pt-card"><strong>Sciatica</strong>Pain radiating to one or both legs from root compression.</div>
+<div class="vlx-pt-card"><strong>Claudication</strong>The need to stop while walking, similar to spinal stenosis.</div>
+<div class="vlx-pt-card"><strong>Sense of instability</strong>"Clicks" or a feeling that the back "gives way" with certain movements.</div>
+</div>
+<h2>Grades and diagnosis</h2>
+<p>The slippage is classified into grades (Meyerding I to IV) according to the percentage of displacement. The X-ray identifies it; <strong>dynamic X-rays</strong> (in flexion and extension) reveal whether the slippage is stable or moves; the MRI shows root compression and disc condition. This distinction —stable vs. unstable— is the key to the entire treatment.</p>
+<h2>Treatment</h2>
+<p><strong>1. Conservative (first line in low grades).</strong> Deep core strengthening, weight control, physiotherapy and analgesia. Most stable grade I–II cases are managed without surgery for years.</p>
+<p><strong>2. Injections.</strong> Useful for radicular pain during flare-ups, always image-guided.</p>
+<p><strong>3. Surgery.</strong> Indicated with documented instability plus disabling pain, neurological deficit or progressive claudication. Depending on the case: <strong>decompression</strong> of the roots —which in stable slippage can be performed via <a href="/en/disc-replacement-arthroplasty-valencia/">minimally invasive technique</a> without fusion— or <a href="/en/lumbar-fusion-valencia/">fusion (arthrodesis)</a> when instability demands it. Choosing correctly between the two is exactly the kind of decision where experience matters.</p>
+<div class="vlx-pt-alert"><strong>Key fact:</strong> having spondylolisthesis on an X-ray is not the same as needing surgery. Many people have it as an incidental finding and without symptoms. We treat the patient, not the image.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Does spondylolisthesis get worse over time?</dt><dd>Degenerative ones usually progress very slowly and many stabilize. Follow-up with comparative X-rays confirms this.</dd>
+<dt>Can I do sport with spondylolisthesis?</dt><dd>Generally yes, adapting it: strengthening the core is protective. Repetitive-impact or hyperextension sports are assessed individually.</dd>
+<dt>Does the spine always have to be fused when operating?</dt><dd>No. In stable slippage with root compression, decompression without fusion is a valid and far less aggressive option. Fusion is reserved for real instability.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'disc-replacement-arthroplasty-valencia', 'es_id' => 870,
+            'title' => 'Disc Replacement (Arthroplasty) in Valencia — Preserve Mobility',
+            'rm_title' => 'Disc Replacement · Arthroplasty Valencia | Dr. Vilatela',
+            'rm_desc' => 'Arthroplasty replaces the damaged disc with a mobile prosthesis, preserving movement. Indications, advantages over fusion and recovery.',
+            'kw' => 'disc replacement valencia',
+            'hero_title' => 'Disc replacement: treating the herniation while preserving movement',
+            'hero_sub' => 'Cervical and lumbar disc arthroplasty in Valencia — the alternative to fusion when the case allows it.',
+            'cta_title' => 'Have you been offered a fusion and want to know the alternatives?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'Not every case is a candidate for a prosthesis, but it is worth knowing before deciding. Dr. Vilatela reviews your case and explains both options with their real pros and cons.',
+            'body' =>
+'<p>For decades, the only surgical solution for an irreparable disc was to <strong>fuse</strong> the two vertebrae. <strong>Disc arthroplasty</strong> changed that paradigm: it replaces the damaged disc with an <strong>articulated prosthesis</strong> that maintains the movement of the segment, similar to a hip or knee replacement.</p>
+<h2>What does it involve?</h2>
+<p>Through an anterior approach (in front of the neck in the cervical spine, through the abdomen in the lumbar spine), the damaged disc is removed completely, the compressed nerve structures are freed, and the prosthesis is implanted, anchored to the upper and lower vertebrae. The segment retains flexion, extension and rotation.</p>
+<h2>Prosthesis vs. fusion: the honest comparison</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Mobility</strong>The prosthesis preserves movement; fusion eliminates it at that segment.</div>
+<div class="vlx-pt-card"><strong>Adjacent levels</strong>By maintaining movement, the prosthesis reduces overload of the neighboring discs.</div>
+<div class="vlx-pt-card"><strong>Versatility</strong>Fusion works for almost everything; the prosthesis requires strict anatomical criteria.</div>
+<div class="vlx-pt-card"><strong>Recovery</strong>Both allow fast recovery with minimally invasive technique; the prosthesis usually avoids a brace.</div>
+</div>
+<h2>Who is a good candidate?</h2>
+<p>Symptomatic disc herniation or disc disease at <strong>one or two levels</strong>, mainly cervical; facet joints in good condition (no advanced arthrosis); no vertebral instability or significant deformity; good bone quality; relatively young, active patients who want to preserve mobility. When these requirements are not met, fusion —or in selected cases an endoscopic decompression without an implant— may be the better option. The correct indication matters more than the fashionable technique.</p>
+<h2>Recovery</h2>
+<p>Hospital stay of 1–2 nights, walking the same day or the next, and return to office activity in 2–4 weeks. Guided physiotherapy speeds readaptation. X-ray follow-up checks the position and function of the prosthesis.</p>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>How long does a disc prosthesis last?</dt><dd>The registries with the longest follow-up (especially cervical) show good function at 10–15 years in most patients. As with any implant, it requires correct indication and technique.</dd>
+<dt>Can you feel the prosthesis when moving the neck?</dt><dd>No: the goal is precisely a natural movement. Most patients forget they have it.</dd>
+<dt>What if it fails in the future?</dt><dd>There is the option of revision or conversion to fusion. This is one of the reasons candidate selection is so strict: to minimize that probability.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'lumbar-fusion-valencia', 'es_id' => 871,
+            'title' => 'Lumbar Fusion (Arthrodesis) in Valencia',
+            'rm_title' => 'Lumbar Fusion · Spinal Arthrodesis Valencia | Dr. Vilatela',
+            'rm_desc' => 'Lumbar fusion stabilizes unstable vertebrae to eliminate mechanical pain. Real indications, minimally invasive techniques and recovery.',
+            'kw' => 'lumbar fusion valencia',
+            'hero_title' => 'Lumbar fusion: when fusing is the right decision',
+            'hero_sub' => 'Vertebral fusion with minimally invasive techniques in Valencia — only when instability demands it.',
+            'cta_title' => 'Have you been advised to have a fusion?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'It is one of the spine surgeries where criteria vary the most. A second opinion with a review of your dynamic imaging gives you confidence before deciding.',
+            'body' =>
+'<p><strong>Lumbar fusion (arthrodesis)</strong> joins ("fuses") two or more vertebrae to eliminate the painful movement between them. It is an effective surgery <strong>when the indication is correct</strong> — and a source of poor results when applied to problems that are not about instability. That is why this page starts with the most important thing: when yes and when no.</p>
+<h2>When it IS indicated</h2>
+<p><strong>Unstable spondylolisthesis</strong> documented on dynamic X-rays, with pain or sciatica (more on vertebral slippage at <a href="/en/spondylolisthesis-valencia/">spondylolisthesis</a>); <strong>post-surgical instability</strong> or after wide decompressions; <strong>progressive deformity</strong> (advanced degenerative scoliosis) with trunk imbalance; <strong>fractures or injuries</strong> that compromise vertebral stability; <strong>severe degenerative disc disease</strong> at a specific level, with concordant disabling pain and after exhausting conservative care — the most demanding indication to confirm.</p>
+<h2>When NOT (or not first)</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Nonspecific low back pain</strong>Without demonstrated instability.</div>
+<div class="vlx-pt-card"><strong>Simple herniation with sciatica</strong>An endoscopic discectomy, far less aggressive, is usually enough.</div>
+<div class="vlx-pt-card"><strong>Stable canal stenosis</strong>Decompression without fusion is sufficient in most cases.</div>
+<div class="vlx-pt-card"><strong>An image without symptoms</strong>A finding alone never justifies a fusion.</div>
+</div>
+<h2>How it is done today: minimally invasive</h2>
+<p>Current techniques (minimally invasive TLIF/PLIF, percutaneous approaches for the screws, high-precision radiological assistance) reduce muscle damage, bleeding and hospital stay compared with classic open surgery. The interbody implant (a "cage" between the vertebrae) restores disc height and promotes the definitive bone fusion.</p>
+<h2>Realistic recovery</h2>
+<p>Hospital: 2–4 nights usually. Walking: from the first day, progressively. Office work: typically 4–6 weeks. Complete bone fusion: 6–12 months, confirmed by X-ray follow-up. Impact sport: individual assessment from 6 months.</p>
+<div class="vlx-pt-alert"><strong>Specialist tip:</strong> before accepting a fusion, always ask to be shown the instability on your own tests (dynamic X-rays) and to be told why decompression alone would not be enough. If the answer does not convince you, seek a <a href="/en/international-patients/">second opinion</a>.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Will I lose noticeable mobility by fusing one level?</dt><dd>Fusion of one or two lumbar levels is barely perceptible in daily life: the remaining levels and the hips compensate for most of the movement.</dd>
+<dt>What is "adjacent segment syndrome"?</dt><dd>The overload of the discs neighboring the fusion, which over the years may degenerate. It is one of the reasons to fuse only what is essential.</dd>
+<dt>Fusion or disc replacement?</dt><dd>They are tools for different problems: the prosthesis requires strict criteria (see <a href="/en/disc-replacement-arthroplasty-valencia/">disc arthroplasty</a>); fusion is the versatile option when there is instability or deformity.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'osteoporotic-vertebral-fracture-valencia', 'es_id' => 872,
+            'title' => 'Osteoporotic Vertebral Fracture in Valencia — Treatment',
+            'rm_title' => 'Osteoporotic Vertebral Fracture Valencia | Dr. Vilatela',
+            'rm_desc' => 'Sudden back pain in people over 65 may be an osteoporotic vertebral fracture. Diagnosis, conservative treatment and percutaneous vertebral augmentation.',
+            'kw' => 'osteoporotic vertebral fracture',
+            'hero_title' => 'Osteoporotic vertebral fracture: the sudden pain that is not lumbago',
+            'hero_sub' => 'Diagnosis and treatment of fragility fractures in Valencia — from the brace to percutaneous vertebral augmentation.',
+            'cta_title' => 'Sudden back pain from age 60–65?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'A vertebral fracture treated in time prevents chronic pain and deformity. Dr. Vilatela reviews your case with recent imaging in private consultation in Valencia.',
+            'body' =>
+'<p>A <strong>sudden, intense</strong> back pain in a person over 60–65 —sometimes after a minimal effort, a sneeze or even with no apparent cause— is not always lumbago: it may be a <strong>fragility vertebral fracture</strong>, the most frequent complication of osteoporosis. Many go undiagnosed, leaving chronic pain and loss of height that were preventable.</p>
+<h2>How to suspect it</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Acute localized pain</strong>In the dorsal or lumbar area, worse standing and on loading, better lying down.</div>
+<div class="vlx-pt-card"><strong>Identifiable onset</strong>A wrong move, a minor fall, lifting weight… or nothing at all.</div>
+<div class="vlx-pt-card"><strong>Loss of height</strong>Several accumulated fractures reduce stature and curve the back (kyphosis).</div>
+<div class="vlx-pt-card"><strong>Risk factors</strong>Known osteoporosis, prolonged corticosteroids, previous wrist or hip fracture.</div>
+</div>
+<h2>Diagnosis</h2>
+<p>The X-ray identifies the vertebral collapse; the <strong>MRI</strong> distinguishes a recent fracture (with edema, potentially treatable with augmentation) from an old, already-consolidated one, and rules out other causes. Bone densitometry quantifies the underlying osteoporosis, which must always be treated.</p>
+<h2>Treatment</h2>
+<p><strong>1. Conservative (first line).</strong> Effective analgesia, temporary support brace and progressive return to activity. Most fractures consolidate within 6–12 weeks. Prolonged bed rest is counterproductive: it accelerates bone and muscle loss.</p>
+<p><strong>2. Percutaneous vertebral augmentation.</strong> When pain is disabling and does not subside within 2–4 weeks, or the fracture progresses, <strong>percutaneous vertebral augmentation</strong> (vertebroplasty/kyphoplasty) stabilizes the vertebra by injecting bone cement through a cannula, with millimetric incisions and usually as day surgery or one overnight stay. Pain relief is often rapid.</p>
+<p><strong>3. Treating the osteoporosis: essential.</strong> After a fragility fracture, the risk of suffering another multiplies. Medical treatment of osteoporosis (together with vitamin D, weight-bearing exercise and fall prevention) is as important as treating the current fracture. We coordinate this part with your doctor or rheumatologist.</p>
+<div class="vlx-pt-alert"><strong>Warning signs:</strong> if the fracture is accompanied by loss of strength in the legs, sphincter disturbance or pain that does not subside when lying down, go to the hospital emergency department: neurological compression or other causes of the collapse must be ruled out.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Does every vertebral fracture need cement?</dt><dd>No: most consolidate with conservative treatment. Augmentation is reserved for refractory pain or progression of the collapse.</dd>
+<dt>Is the cement safe?</dt><dd>In expert hands and with continuous radiological control it is a low-aggression procedure. As with any technique, it requires correct indication and execution.</dd>
+<dt>Will I get my previous height back?</dt><dd>Kyphoplasty can partially recover vertebral height if performed early; preventing new fractures is the best strategy to avoid losing further height.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'discogel-liquid-disc-prosthesis-valencia', 'es_id' => 894,
+            'title' => 'Liquid Disc Prosthesis (Discogel) in Valencia',
+            'rm_title' => 'Liquid Disc Prosthesis · Discogel Valencia | Dr. Vilatela',
+            'rm_desc' => 'Discogel (liquid disc prosthesis): percutaneous treatment of contained disc herniation without open surgery. Indications, advantages and process, in Valencia.',
+            'kw' => 'discogel valencia',
+            'hero_title' => 'Liquid disc prosthesis (Discogel): treating the herniation without open surgery',
+            'hero_sub' => 'Percutaneous nucleolysis with Discogel in Valencia — a minimally invasive option for discogenic pain and contained herniation, when indicated.',
+            'cta_title' => 'Is Discogel an option for your herniation?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'Only an assessment with your MRI can confirm it. Dr. Vilatela reviews your case in private consultation in Valencia and explains whether this technique suits you or what the best alternative would be.',
+            'body' =>
+'<p>Between conservative treatment and surgery there is a middle ground for selected cases. The <strong>liquid disc prosthesis</strong> —technically <strong>percutaneous nucleolysis with Discogel</strong>— is a minimally invasive procedure that treats certain disc herniations and discogenic pain <strong>through a puncture, without open surgery and without implants</strong>.</p>
+<h2>What is Discogel?</h2>
+<p>Discogel is a <strong>radiopaque gelified ethanol</strong>: alcohol combined with cellulose and a tungsten component that makes it visible on X-ray throughout the procedure. It is infiltrated into the nucleus of the damaged disc under image guidance, with continuous radiological control and through a needle, without incisions.</p>
+<h2>How does it work?</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Dehydrates the nucleus</strong>The ethanol reduces the water in the disc nucleus, lowering the pressure inside the disc.</div>
+<div class="vlx-pt-card"><strong>Decompresses the root</strong>As pressure drops, the disc retracts and reduces contact with the nerve.</div>
+<div class="vlx-pt-card"><strong>The cellulose fixes it</strong>The gelified component prevents the product from dispersing outside the disc.</div>
+<div class="vlx-pt-card"><strong>Radiological control</strong>The tungsten keeps the gel visible at all times for a precise application.</div>
+</div>
+<h2>Who is it indicated for?</h2>
+<p>The indication is the key to everything: Discogel <strong>is not for every herniation</strong>. It is an option to consider when these conditions are met: <strong>discogenic pain</strong> that typically worsens when bending the trunk; <strong>contained disc herniation</strong> (the material remains within the disc envelope, no loose fragments); a <strong>disc with sufficient hydration</strong> (intermediate degrees of degeneration on MRI); a condition that <strong>has not responded</strong> to well-managed conservative treatment but does not meet criteria for urgent surgery either.</p>
+<h2>When it is NOT the right technique</h2>
+<p>These situations contraindicate Discogel and point toward other solutions: a large <strong>extruded herniation or free fragment</strong>; <strong>severe sciatica</strong> or progressive neurological deficit; sphincter disturbance or significant loss of strength; absence of pain (a radiological finding without symptoms is not treated).</p>
+<div class="vlx-pt-alert"><strong>Warning sign:</strong> if you have sudden loss of strength in the leg, incontinence or numbness in the genital area, it is not the time to consider percutaneous techniques: go to the hospital emergency department. These signs may require surgery without delay.</div>
+<h2>What the procedure is like</h2>
+<p>It is performed on an outpatient basis or with a very short stay, usually under local anesthesia and sedation. Through a puncture guided by fluoroscopy, the disc is accessed and the Discogel is infiltrated with continuous image control. The procedure typically lasts 20–40 minutes. Most patients walk the same day and feel mild discomfort that subsides within a few days.</p>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Is Discogel an operation?</dt><dd>Not in the classic sense: there is no incision or open surgery. It is a percutaneous procedure (through a puncture) under image guidance, performed by a specialist in a controlled surgical environment.</dd>
+<dt>Does it work for any disc herniation?</dt><dd>No. It is mainly indicated for contained herniations with discogenic pain and a still-hydrated disc. Large extruded herniations or those with neurological deficit require another solution.</dd>
+<dt>And if Discogel does not work in my case?</dt><dd>It does not compromise later treatments: if needed, endoscopic surgery or other options can be considered. That is why careful patient selection is so important.</dd>
+</dl>',
+        ),
+
+        array(
+            'slug' => 'prp-spine-valencia', 'es_id' => 899, 'thumb' => 897,
+            'title' => 'PRP (Platelet-Rich Plasma) for the Spine in Valencia',
+            'rm_title' => 'PRP Spine Valencia · Platelet-Rich Plasma | Dr. Vilatela',
+            'rm_desc' => 'PRP (platelet-rich plasma) for spine pain in Valencia: image-guided regenerative injection, non-surgical. Indications and process.',
+            'kw' => 'prp spine valencia',
+            'hero_title' => 'PRP for the spine: regenerative medicine before surgery',
+            'hero_sub' => 'Image-guided platelet-rich plasma injection in Valencia — a non-surgical option for facet and discogenic pain, with Dr. Antonio Vilatela.',
+            'cta_title' => 'Is PRP an option for your spine pain?', 'cta_anchor' => $cta_anchor,
+            'cta_text' => 'Only an assessment with your MRI can confirm it. Dr. Vilatela reviews your case in private consultation in Valencia and explains whether regenerative medicine suits you or what the best alternative would be.',
+            'body' =>
+'<p><strong>Platelet-rich plasma (PRP)</strong> is a <strong>regenerative medicine</strong> treatment that uses the patient&rsquo;s own growth factors to reduce inflammation and stimulate repair of the spine tissues. It is a <strong>non-surgical</strong> option to consider in certain cases of facet or discogenic pain, before contemplating surgery.</p>
+<h2>What is PRP and where does it come from?</h2>
+<p>PRP is obtained from <strong>your own blood</strong>. After a simple draw, the blood is <strong>centrifuged</strong> to separate its components. The intermediate layer —the platelet-rich plasma— concentrates the growth factors responsible for the body&rsquo;s natural repair processes. It is that fraction which is injected into the area to be treated.</p>
+' . $img_estr . '
+<p>Because it comes from your own blood, PRP is <strong>autologous</strong>: it does not introduce substances foreign to the body, which minimizes the risk of rejection or allergic reaction.</p>
+<h2>How it acts on the spine</h2>
+<div class="vlx-pt-grid">
+<div class="vlx-pt-card"><strong>Reduces inflammation</strong>The growth factors help calm the inflammation of the joint or disc that generates the pain.</div>
+<div class="vlx-pt-card"><strong>Stimulates repair</strong>It promotes collagen synthesis and the natural regeneration processes of the damaged tissue.</div>
+<div class="vlx-pt-card"><strong>Functional recovery</strong>The goal is to restore mobility and reduce dependence on painkillers, not just mask the symptom.</div>
+<div class="vlx-pt-card"><strong>Minimally invasive</strong>It is applied through an image-guided injection, without surgery or hospital stay.</div>
+</div>
+<h2>The facet injection step by step</h2>
+<p>When the pain comes from the <strong>facet joints</strong> —the small posterior joints that allow movement between vertebrae— the PRP is injected directly into them with image control, to ensure the product reaches exactly the point that generates the pain.</p>
+' . $img_inf . '
+<h2>Who is it indicated for?</h2>
+<p>PRP does not replace surgery when it is necessary, but it is an option to consider in selected cases: <strong>facet pain</strong> (facet syndrome) lumbar or cervical; <strong>disc degeneration</strong> in early or intermediate stages; chronic spine pain that <strong>has not fully responded</strong> to physiotherapy and medication; patients who want to <strong>exhaust the non-surgical options</strong> before considering an operation.</p>
+<h2>When it is NOT the right option</h2>
+<p>Significant nerve compression with progressive loss of strength; a large extruded herniation with surgical criteria; active infection or certain coagulation disorders.</p>
+<div class="vlx-pt-alert"><strong>Warning sign:</strong> if you have sudden loss of strength in the leg, incontinence or numbness in the genital area, it is not the time to consider regenerative medicine: go to the hospital emergency department.</div>
+<h2>Frequently asked questions</h2>
+<dl class="vlx-pt-faq">
+<dt>Does PRP cure the herniation or the arthrosis?</dt><dd>It is not a magic cure. PRP aims to reduce pain and inflammation and stimulate tissue repair; results vary depending on the case and the degree of degeneration. It is offered with realistic expectations and always after an individual assessment.</dd>
+<dt>How many sessions are needed?</dt><dd>It depends on the case. Some patients improve with a single injection; others benefit from a short course. It is defined after assessing your response.</dd>
+<dt>Is it painful? How long is the recovery?</dt><dd>It is an outpatient procedure with mild discomfort. Most patients return to their usual activity within a few days, progressively.</dd>
+<dt>Does it have rejection or side effects?</dt><dd>Being plasma from your own blood (autologous), the risk of rejection or allergy is minimal. Side effects are usually limited to transient local discomfort.</dd>
+</dl>',
+        ),
+    );
+
+    foreach ($landings as $l) {
+        $log['landings'][$l['slug']] = vlx_v30_build($l);
+    }
+
+    if (class_exists('\Elementor\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+        $log['el_cache'] = 'cleared';
+    }
+    do_action('litespeed_purge_all');
+    $log['litespeed'] = 'purged';
+    echo '<pre>' . esc_html(json_encode($log, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    exit;
+});
+
+// ---- Menú EN: traducir títulos + swap URLs de las 8 nuevas landings (cuando en /en/) ----
+add_filter('wp_nav_menu_objects', function ($items, $args) {
+    $cur = function_exists('pll_current_language') ? pll_current_language() : null;
+    $on_en = ($cur === 'en') || (strpos($_SERVER['REQUEST_URI'] ?? '', '/en/') === 0);
+    if (!$on_en) return $items;
+    $titles = array(
+        'Prótesis discal líquida (Discogel)' => 'Liquid Disc Prosthesis (Discogel)',
+        'PRP / Medicina regenerativa' => 'PRP / Regenerative Medicine',
+    );
+    $urls = array(
+        '/hernia-cervical-valencia/' => '/en/cervical-disc-herniation-valencia/',
+        '/escoliosis-adulto-valencia/' => '/en/adult-scoliosis-valencia/',
+        '/espondilolistesis-valencia/' => '/en/spondylolisthesis-valencia/',
+        '/protesis-disco-artroplastia-valencia/' => '/en/disc-replacement-arthroplasty-valencia/',
+        '/artrodesis-lumbar-valencia/' => '/en/lumbar-fusion-valencia/',
+        '/fractura-vertebral-osteoporotica-valencia/' => '/en/osteoporotic-vertebral-fracture-valencia/',
+        '/protesis-discal-liquida-discogel-valencia/' => '/en/discogel-liquid-disc-prosthesis-valencia/',
+        '/prp-columna-valencia/' => '/en/prp-spine-valencia/',
+    );
+    foreach ($items as $item) {
+        $t = trim($item->title);
+        if (isset($titles[$t])) $item->title = $titles[$t];
+        foreach ($urls as $from => $to) {
+            if (strpos($item->url, $from) !== false && strpos($item->url, '/en/') === false) { $item->url = home_url($to); break; }
+        }
+    }
+    return $items;
+}, 52, 2);
+// ============ END v30 ============
