@@ -1,0 +1,71 @@
+<!--
+  PÁGINA /donde-estamos — drvilatela.es
+  Listo para pegar en un bloque "HTML personalizado" de WordPress (o como contenido de página).
+  Contacto SIN teléfono (decisión Dr. 2026-06-15): formulario + WhatsApp + email.
+  Mapa interactivo: Google Maps embed (sin API key) de Hospital Casa de Salud.
+  Para añadir más consultas: duplicar el bloque .ddc-card y su iframe con la nueva dirección.
+-->
+<style>
+  .ddc-wrap{max-width:1080px;margin:0 auto;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;color:#3E4A54}
+  .ddc-h1{font-size:2rem;color:#1a3a5c;margin:0 0 .3rem;font-weight:700}
+  .ddc-sub{font-size:1.05rem;color:#6b7280;margin:0 0 1.6rem}
+  .ddc-grid{display:flex;flex-wrap:wrap;gap:1.4rem;align-items:stretch}
+  .ddc-mapcol{flex:1 1 460px;min-width:300px}
+  .ddc-mapcol iframe{width:100%;height:380px;border:0;border-radius:12px;box-shadow:0 4px 18px rgba(26,58,92,.12)}
+  .ddc-card{flex:1 1 320px;min-width:280px;background:#f6f9fb;border:1px solid #e1e8ee;border-radius:12px;padding:1.4rem 1.5rem}
+  .ddc-card h3{margin:0 0 .2rem;color:#1a3a5c;font-size:1.2rem}
+  .ddc-card .ddc-addr{color:#4f6b7e;font-size:.98rem;line-height:1.5;margin:.4rem 0 1rem}
+  .ddc-card .ddc-meta{color:#6b7280;font-size:.9rem;margin:.2rem 0}
+  .ddc-contact{margin-top:1.2rem;display:flex;flex-direction:column;gap:.6rem}
+  .ddc-btn{display:flex;align-items:center;gap:.6rem;text-decoration:none;border-radius:10px;padding:.7rem 1rem;font-weight:600;font-size:1rem;transition:.15s}
+  .ddc-btn svg{flex:0 0 22px}
+  .ddc-form{background:#1a3a5c;color:#fff}
+  .ddc-form:hover{background:#16314f}
+  .ddc-wa{background:#25D366;color:#fff}
+  .ddc-wa:hover{background:#1eb858}
+  .ddc-mail{background:#fff;color:#1a3a5c;border:1.5px solid #1a3a5c}
+  .ddc-mail:hover{background:#eef3f7}
+  .ddc-note{font-size:.85rem;color:#9aa0a6;margin-top:.9rem;text-align:center}
+</style>
+
+<div class="ddc-wrap">
+  <h1 class="ddc-h1">Dónde estamos</h1>
+  <p class="ddc-sub">Consulta privada de columna del Dr. Antonio Vilatela. Reserva tu cita por el canal que prefieras.</p>
+
+  <div class="ddc-grid">
+    <!-- MAPA INTERACTIVO -->
+    <div class="ddc-mapcol">
+      <iframe
+        title="Mapa Hospital Casa de Salud — Dr. Vilatela"
+        src="https://maps.google.com/maps?q=Hospital%20Casa%20de%20Salud%2C%20Carrer%20del%20Doctor%20Manuel%20Candela%2041%2C%20Valencia&z=16&output=embed"
+        loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+    </div>
+
+    <!-- TARJETA CONSULTA + CONTACTO -->
+    <div class="ddc-card">
+      <h3>Hospital Casa de Salud</h3>
+      <p class="ddc-addr">
+        C/ Dr. Manuel Candela, 41 — 4ª planta<br>
+        46021 Valencia
+      </p>
+      <p class="ddc-meta">ICEM · Instituto de Columna Mediterráneo</p>
+
+      <div class="ddc-contact">
+        <a class="ddc-btn ddc-form" href="/contacto/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>
+          Pedir cita (formulario)
+        </a>
+        <a class="ddc-btn ddc-wa" href="https://wa.me/34621352613?text=Hola%2C%20me%20gustar%C3%ADa%20pedir%20una%20cita%20de%20columna" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.4A10 10 0 1 0 12 2zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.4-1.1-2.7s.7-1.9 .9-2.2c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.6c-.1.2-.3.3-.1.6.1.3.6 1 1.3 1.6.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.2.1.4.2.5.3.1.2.1.7-.1 1.3z"/></svg>
+          WhatsApp
+        </a>
+        <a class="ddc-btn ddc-mail" href="mailto:consulta@drvilatela.es?subject=Solicitud%20de%20cita">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+          consulta@drvilatela.es
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <p class="ddc-note">Atención a pacientes privados · Comunidad Valenciana</p>
+</div>
